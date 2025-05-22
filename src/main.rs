@@ -1,9 +1,11 @@
-use lopdf::dictionary;
+use zip::write::SimpleFileOptions;
 use std::collections::BTreeMap;
-use std::env;
-use std::process::exit;
-use lopdf::content::{Content, Operation};
-use lopdf::{Document, Object, ObjectId, Stream, Bookmark};
+use std::fs::{File, OpenOptions};
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::{env, vec};
+use std::process::{exit, Command};
+use lopdf::{Document, Object, ObjectId, Bookmark};
 
 
 fn main() {
@@ -17,7 +19,7 @@ fn main() {
     let mut option_enc = false;
     match command{
         "merge" | "m" => {
-            println!("Merging the given pdf");
+            println!("Merging the given pdf in the given order ");
             let mut name = "merged_documents.pdf";
             let mut documents = Vec::new();
             let mut doc;
@@ -43,8 +45,58 @@ fn main() {
             let _ = merge(documents,name);
         },
         "help" |"h" |"?" => help(),
+        "get" | "g" =>{let document = Document::load(&args[1]).unwrap(); get_page(document,args)},
+        "del" |"d" => {let document = Document::load(&args[1]).unwrap();  del_page(document,args)},
+        "split" |"s" => {let document = Document::load(&args[1]).unwrap();split(document,args)},
         _ => print!("No command was recognized. type yapm help to get all the commands")
     }
+
+}
+
+fn split(document: Document,_args:Vec<String>) {
+    //Doc req
+    let count = document.get_pages().len();
+    let mut pages_numbers:Vec<u32> = Vec::new();
+    let mut doc ;
+    let mut name;
+    let mut files: Vec<PathBuf> = vec![];
+    for i in 1..=count{
+        doc = document.clone();
+        for j in 1..=count{
+            if j != i {
+            pages_numbers.push(j as u32);
+            }
+        }
+        doc.delete_pages(&pages_numbers);
+        name = format!("page_{i}.pdf");
+        files.push(PathBuf::from(&name));
+        doc.save(name).unwrap();
+        pages_numbers.clear();
+    }
+
+    let archive_path = "splitted_document.zip";
+    let archive = PathBuf::from_str(archive_path).unwrap();
+    let existing_zip = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(archive)
+        .unwrap();
+
+    let mut append_zip = zip::ZipWriter::new(existing_zip);
+
+    for file in &files {
+        append_zip
+            .start_file(file.to_string_lossy(), SimpleFileOptions::default())
+            .unwrap();
+
+        let mut f = File::open(file).unwrap();
+        let _ = std::io::copy(&mut f, &mut append_zip);
+    }
+
+    append_zip.finish().unwrap();
+    
+    delete_files(files.clone());
 
 }
 
@@ -216,16 +268,45 @@ fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
 
     document.compress();
 
-    // Save the merged PDF.
-    // Store file in current working directory.
-    // Note: Line is excluded when running doc tests
-    if true {
-        document.save(name).unwrap();
-    }
+    document.save(name).unwrap();
+
 
     Ok(())
 }
 
 fn help(){
-    println!("Oui oui caca");
+    println!("In progress");
+}
+
+fn del_page(document:Document,args:Vec<String>){
+    let mut doc = document;
+    doc.delete_pages(&[args[2].parse::<u32>().unwrap()]);
+    let name = format!("modified_{}",args[1]);
+    doc.save(name).unwrap();
+}
+fn get_page(document: Document,args:Vec<String>){
+    let count = document.get_pages().len();
+    let mut pages_numbers:Vec<u32> = Vec::new();
+    let mut doc = document;
+    let page = args[2].parse::<usize>().unwrap();
+    for j in 1..=count{
+        if j != page {
+            pages_numbers.push(j as u32);
+        }
+    }
+    doc.delete_pages(&pages_numbers);
+    let name = format!("Page_{page}_{}",args[1]);
+    doc.save(name).unwrap();
+}
+
+fn delete_files(files: Vec<PathBuf>){
+    let mut cmd;
+    let mut filename;
+    for file in files{
+        filename = file.to_str().unwrap();
+        cmd = format!("rm {filename}");
+        Command::new("sh")
+        .arg("-c")
+        .arg(cmd).output().expect("Failed to delete temporary files");
+    }
 }
