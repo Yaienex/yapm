@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::{env, vec};
 use std::process::{exit, Command};
 use lopdf::{Document, Object, ObjectId, Bookmark};
-
+use colored::Colorize;
 
 fn main() {
     //getting the argument and removing the 0th arg (program name)
@@ -44,9 +44,10 @@ fn main() {
             }
             let _ = merge(documents,name);
         },
-        "help" |"h" |"?" => help(),
+        "help" |"h" |"?" => help(args),
+        "compress" => {let document = Document::load(&args[1]).unwrap(); compress(document);}
         "get" | "g" =>{let document = Document::load(&args[1]).unwrap(); get_page(document,args)},
-        "del" |"d" => {let document = Document::load(&args[1]).unwrap();  del_page(document,args)},
+        "delete" |"del" |"d" => {let document = Document::load(&args[1]).unwrap();  del_page(document,args)},
         "split" |"s" => {let document = Document::load(&args[1]).unwrap();split(document,args)},
         _ => print!("No command was recognized. type yapm help to get all the commands")
     }
@@ -274,9 +275,70 @@ fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
     Ok(())
 }
 
-fn help(){
-    println!("In progress");
+fn help(args:Vec<String>){
+    if args.len() == 1 {
+        compress_help(false);
+        merge_help(false);
+        get_help(false);
+        del_help(false);
+        split_help(false);
+
+    } else if args.len() == 2 {
+        let arg = args[1].as_str();
+        match arg{
+            "compress" => compress_help(true),
+            "merge" => merge_help(true),
+            "get" => get_help(true),
+            "delete" => del_help(true),
+            "split" => split_help(true),
+            _ => println!("The given command was not recognize.\n[USAGE] yapm {} (<cmd>)","help".blue()),
+        }
+    } else {
+        println!("Too many arguments for help\n[USAGE] yapm {} (<cmd>)","help".blue())
+    }
+    
 }
+
+fn compress_help(full:bool){
+    if full{
+        println!("- {} : compress the given pdf file (Do not expect a good compression)\n\t[USAGE] yapm compress <pdf file>","compress".blue());
+    }else {
+        println!("- {} : compress the given pdf file","compress".blue());
+    }
+}
+
+fn merge_help(full:bool){
+    if full{
+        println!("- {} : merge the given pdf file in the order you submitted them\n\t[USAGE] yapm merge <pdffile1> ... <pdffileN>\n\t\tPotential options: -o output name","merge".blue());
+    }else {
+        println!("- {} : merge the given pdf files","merge".blue());
+    }
+}
+
+fn get_help(full:bool){
+    if full{
+        println!("- {} : get the n page of the given pdf file\n\t[USAGE] yapm get <pdf file> <page>","get".blue());
+    }else {
+        println!("- {} : get the n page of the given pdf file","get".blue());
+    }
+}
+
+fn del_help(full:bool){
+    if full{
+        println!("- {} : del the n page of the given pdf file\n\t[USAGE] yapm del <pdf file> <page>","delete".blue());
+    }else {
+        println!("- {} : del the n page of the given pdf file","delete".blue());
+    }
+}
+
+fn split_help(full:bool){
+    if full{
+        println!("- {} : split the given pdf file into a zip of the pages\n\t[USAGE] yapm split <pdf file>\n\t\tPotential options: -o output name","split".blue());
+    }else {
+        println!("- {} : split the given pdf file into a zip of the pages","split".blue());
+    }
+}
+
 
 fn del_page(document:Document,args:Vec<String>){
     let mut doc = document;
@@ -289,6 +351,10 @@ fn get_page(document: Document,args:Vec<String>){
     let mut pages_numbers:Vec<u32> = Vec::new();
     let mut doc = document;
     let page = args[2].parse::<usize>().unwrap();
+    if page > count {
+        println!("The {} page is out of range. The pdf file have {} page(s)",page,count);
+        exit(1);
+    }
     for j in 1..=count{
         if j != page {
             pages_numbers.push(j as u32);
@@ -298,6 +364,13 @@ fn get_page(document: Document,args:Vec<String>){
     let name = format!("Page_{page}_{}",args[1]);
     doc.save(name).unwrap();
 }
+
+fn compress(document: Document){
+    let mut doc = document;
+    doc.compress();
+    doc.save("compressed.pdf").unwrap();
+}
+
 
 fn delete_files(files: Vec<PathBuf>){
     let mut cmd;
