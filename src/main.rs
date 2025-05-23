@@ -1,10 +1,10 @@
 use zip::write::SimpleFileOptions;
 use std::collections::BTreeMap;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{env, vec};
-use std::process::{exit, Command};
+use std::process::exit;
 use lopdf::{Document, Object, ObjectId, Bookmark};
 use colored::Colorize;
 
@@ -45,22 +45,26 @@ fn main() {
             let _ = merge(documents,name);
         },
         "help" |"h" |"?" => help(args),
-        "compress" => {let document = Document::load(&args[1]).unwrap(); compress(document);}
-        "get" | "g" =>{let document = Document::load(&args[1]).unwrap(); get_page(document,args)},
-        "delete" |"del" |"d" => {let document = Document::load(&args[1]).unwrap();  del_page(document,args)},
-        "split" |"s" => {let document = Document::load(&args[1]).unwrap();split(document,args)},
+        "compress" =>compress(&mut args),
+        "get" | "g" => get_page(&mut args),
+        "delete" |"del" |"d" =>del_page(&mut args),
+        "split" |"s" => split(&mut args),
+        "reorganize" |"swap"|"sw" |"reorg" |"ro" => reorganize( &mut args),
         _ => print!("No command was recognized. type yapm help to get all the commands")
     }
 
 }
 
-fn split(document: Document,_args:Vec<String>) {
+fn split(args:&mut Vec<String>) {
     //Doc req
+    let document;
+    let _pdf_name;
+    (document,_pdf_name) = load_doc(args);
     let count = document.get_pages().len();
     let mut pages_numbers:Vec<u32> = Vec::new();
     let mut doc ;
     let mut name;
-    let mut files: Vec<PathBuf> = vec![];
+    let mut files: Vec<String> = vec![];
     for i in 1..=count{
         doc = document.clone();
         for j in 1..=count{
@@ -70,12 +74,26 @@ fn split(document: Document,_args:Vec<String>) {
         }
         doc.delete_pages(&pages_numbers);
         name = format!("page_{i}.pdf");
-        files.push(PathBuf::from(&name));
+        files.push(name.clone());
         doc.save(name).unwrap();
         pages_numbers.clear();
     }
 
-    let archive_path = "splitted_document.zip";
+    name = "splitted_document.zip".to_string();
+    for i in 0..args.len(){
+        if args[i] == "-o"{
+            if i +1 > args.len() - 1{
+                println!("Missing the argument after -o");
+                exit(1);
+            }
+            name = args[i+1].clone();
+            if ! name.contains(".zip"){
+                name = format!("{name}.zip");
+            }
+        }
+    }
+    let archive_path = name.as_str();
+
     let archive = PathBuf::from_str(archive_path).unwrap();
     let existing_zip = OpenOptions::new()
         .create(true)
@@ -88,7 +106,7 @@ fn split(document: Document,_args:Vec<String>) {
 
     for file in &files {
         append_zip
-            .start_file(file.to_string_lossy(), SimpleFileOptions::default())
+            .start_file(PathBuf::from(file).to_string_lossy(), SimpleFileOptions::default())
             .unwrap();
 
         let mut f = File::open(file).unwrap();
@@ -97,7 +115,7 @@ fn split(document: Document,_args:Vec<String>) {
 
     append_zip.finish().unwrap();
     
-    delete_files(files.clone());
+    delete_files(files);
 
 }
 
@@ -275,6 +293,50 @@ fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
     Ok(())
 }
 
+fn reorganize(args:&mut Vec<String>){
+    let document;
+    let pdf_name;
+    (document,pdf_name)  = load_doc(args);
+    let count = document.get_pages().len();
+    let mut documents: Vec<Document> = Vec::new();
+    let mut files : Vec<String> = Vec::new();
+
+    if args.len() > 1{
+        if args[0] == "-s"{
+            if  args.len() != 3{
+                println!("Missing arguments after -s\n\t[USAGE] yapm reorganize -s <page one> <page two> <pdf file>");
+            }
+            else {
+                //Extract every pages
+                for i in 1..=count{
+                    let mut  tmp:Vec<u32> = Vec::new();
+                    let mut doc = document.clone();
+                    for j in 1..=count{
+                        if j!=i {
+                            tmp.push(j as u32)
+                        }
+                    }
+                    doc.delete_pages(&tmp);
+                    let name = format!("tmp_{i}_{}",pdf_name);
+                    doc.save(&name).unwrap();
+                    documents.push(Document::load(&name).unwrap());
+                    files.push(name);
+                    tmp.clear();
+                }
+
+                documents.swap(args[1].parse::<usize>().unwrap() -1 , args[2].parse::<usize>().unwrap() -1 );
+                let name = format!("swapped_{pdf_name}");
+                let _ = merge(documents, name.as_str());
+                delete_files(files);
+            }
+            
+            
+        }
+    }
+    //Option -s 1 2 => swap page 1 and 2 / By default give the full possibility 
+    //OR full swap ...
+}
+
 fn help(args:Vec<String>){
     if args.len() == 1 {
         compress_help(false);
@@ -340,17 +402,23 @@ fn split_help(full:bool){
 }
 
 
-fn del_page(document:Document,args:Vec<String>){
-    let mut doc = document;
-    doc.delete_pages(&[args[2].parse::<u32>().unwrap()]);
-    let name = format!("modified_{}",args[1]);
+fn del_page(args:&mut Vec<String>){
+    let mut doc;
+    let  pdf_name;
+    (doc,pdf_name )= load_doc(args);
+    doc.delete_pages(&[args[0].parse::<u32>().unwrap()]);
+    let name = format!("modified_{}",pdf_name);
     doc.save(name).unwrap();
 }
-fn get_page(document: Document,args:Vec<String>){
+
+fn get_page(args:&mut Vec<String>){
+    let  document;
+    let  pdf_name;
+    (document,pdf_name)  = load_doc(args);
     let count = document.get_pages().len();
     let mut pages_numbers:Vec<u32> = Vec::new();
     let mut doc = document;
-    let page = args[2].parse::<usize>().unwrap();
+    let page = args[0].parse::<usize>().unwrap();
     if page > count {
         println!("The {} page is out of range. The pdf file have {} page(s)",page,count);
         exit(1);
@@ -361,25 +429,40 @@ fn get_page(document: Document,args:Vec<String>){
         }
     }
     doc.delete_pages(&pages_numbers);
-    let name = format!("Page_{page}_{}",args[1]);
+    let name = format!("Page_{page}_{}",pdf_name);
     doc.save(name).unwrap();
 }
 
-fn compress(document: Document){
-    let mut doc = document;
+fn compress( args: &mut Vec<String>){
+    let mut doc ;
+    let _pdf_name;
+    (doc,_pdf_name)= load_doc(args);
     doc.compress();
     doc.save("compressed.pdf").unwrap();
 }
 
+fn load_doc(args: &mut Vec<String>) ->( Document,String){
+    //Removing the command from the arfs list 
+    args.remove(0);
+    let mut index = 0;
+    let mut name: String = String::new();
+    //Found the .pdf file in the list of the arguments
+    for i in 0..args.len(){
+        if args[i].contains(".pdf"){
+            name = args[i].clone();
+            index = i;
+        }
+    }
+    let pdf_name = args.remove(index);
+    let document = Document::load(&name);
+    match document{
+        Ok(doc) => (doc,pdf_name),
+        Err(err) => {println!("Error when trying to load the pdf {}\n{}",name.blue(),err); exit(1)}
+    }
+}
 
-fn delete_files(files: Vec<PathBuf>){
-    let mut cmd;
-    let mut filename;
+fn delete_files(files: Vec<String>){
     for file in files{
-        filename = file.to_str().unwrap();
-        cmd = format!("rm {filename}");
-        Command::new("sh")
-        .arg("-c")
-        .arg(cmd).output().expect("Failed to delete temporary files");
+       let _ =  fs::remove_file(file);
     }
 }
