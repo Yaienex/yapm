@@ -170,7 +170,6 @@ fn help_button_clicked() {
         .destroy_with_parent(true)
         .visible(true)
         .build();
-    println!("{:?}",window.parent());
     window.present();
 
 }
