@@ -1,15 +1,13 @@
+use std::ops::Not;
+use std::process::exit;
 
-use std::ffi::OsStr;
-
-use gtk4::gio::File;
-use gtk4::glib::property::PropertyGet;
-use gtk4::glib::translate::FromGlibPtrBorrow;
-use gtk4::glib::{clone, GString, RustClosure, Type, Value};
-use gtk4::subclass::window;
-use gtk4::{self as gtk, DrawingArea, DropTarget, FileChooser, FileDialog, Grid, GridLayout, IconView, Image, Label, ScrolledWindow, TextBuffer, TextView, Widget};
+use gtk4::glib::GString;
+use gtk4::ffi::{gtk_window_controls_get_decoration_layout, GtkSettings};
+use gtk4::glib::{GStr, Value};
+use gtk4::{self as gtk, Grid,Image, Label, ScrolledWindow, TextView};
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Button};
-use poppler::PopplerDocument;
+
 
 use super::del_box::del_box;
 use super::get_box::get_box;
@@ -32,25 +30,20 @@ pub fn app(){
 
 }
 
-/*
-TODO
-- Menu bar -> header bar 
-- drag drop zone
-- Preview
-- right menu preview
-- Home menu with the selection of the option 
-*/
 
 fn build_ui(app: &Application) {
+    style( false);
     let margin = 20;
     let inter_spacing = 10;
     let app_wrapper = gtk4::Box::builder()
+        .name("app-wrapper")
         .vexpand(true)
         .hexpand(true)
         .orientation(gtk4::Orientation::Vertical)
         .build();
     let window = ApplicationWindow::builder()
         .application(app)
+        .name("main-window")
         .title("Yet Another PDF Merger")
         .child(&app_wrapper)
         .default_width(800)
@@ -59,6 +52,7 @@ fn build_ui(app: &Application) {
 
     //Grid with the button tiles to choose which mode you'll choose
     let grid = Grid::builder()
+        .name("grid")
         .margin_bottom(margin)
         .margin_top(margin)
         .margin_start(margin)
@@ -90,17 +84,22 @@ fn build_ui(app: &Application) {
     grid.attach(&del_page, 1, 1,1,1);
     grid.attach(&get_page,1,2,1,1,);
 
-    let help_button = Button::builder().build();
-    let home_button = Button::builder().build();
+    let help_button = Button::builder().name("button").build();
+    let home_button = Button::builder().name("button").build();
+    let mode_button = Button::builder().name("button").build();
     let help_icon = Image::from_file("ressources/help_icon.png");
     let home_icon = Image::from_file("ressources/home_icon.png");
-    home_button.set_child(Some(&home_icon));
-    help_button.set_child(Some(&help_icon));
-    let header_bar = gtk4::HeaderBar::builder().build();
-    let e = gtk4::ActionBar::builder().build();
-    e.set_revealed(true);
+    let mode_icon = Image::builder()
+        .file("ressources/theme_mode_icon.png")
+        .icon_size(gtk4::IconSize::Large)
+        .build();
     
+    home_button.set_child(Some(&home_icon));
+    mode_button.set_child(Some(&mode_icon));
+    help_button.set_child(Some(&help_icon));
+    let header_bar = gtk4::HeaderBar::builder().name("header-bar").build();
     header_bar.pack_start(&home_button);
+    header_bar.pack_start(&mode_button);
     header_bar.pack_start(&help_button);
 
     window.set_titlebar(Some(&header_bar));
@@ -112,38 +111,31 @@ fn build_ui(app: &Application) {
     help_button.connect_clicked(|_e|{
         help_button_clicked();
     });
+    mode_button.connect_clicked( move |button| {
+        let flag = button.widget_name();
+        if flag == "button" {
+            style(true);
+            button.set_widget_name("nbutton");
+        } else if flag == "nbutton" {
+            style(false);
+            button.set_widget_name("button");
+        }
+    });
 
-    
  
     
 }
 
-//We need to create a new window for the corresponding mode 
-//But first let's do the Main Menu 
-fn on_select(file : Result<gtk4::gio::ListModel, gtk4::glib::Error>){
-    let filemodel = file.unwrap();
-    for i in 0..filemodel.n_items(){
-        let file  =    filemodel.item(i).unwrap().downcast::<File>().unwrap();
-        let path = file.path().unwrap();
-        if path.extension() == Some(OsStr::new("pdf")){
-            println!("{:?} : ce fichier est bien un pdf",path);
-        }
-        else {
-            println!("{:?} : ce fichier n'est pas un pdf",path);
-        }
-
-    }
-    
-
-}
-
+//TO COMPLETE
 fn help_button_clicked() {
     let help_wrapper = gtk4::Box::builder()
+        .name("app-wrapper")
         .orientation(gtk4::Orientation::Vertical)
         .build();
     
     let text = TextView::builder()
         .editable(false)
+        .name("button")
         .cursor_visible(false)
         .build();
     let buff = text.buffer();
@@ -159,7 +151,7 @@ fn help_button_clicked() {
     help_wrapper.append(&scroll);
 
 
-    let header_bar = gtk4::HeaderBar::builder().build();
+    let header_bar = gtk4::HeaderBar::builder().name("header-bar").build();
     let window:ApplicationWindow= ApplicationWindow::builder()
         .title("Yet Another PDF Merger - Help")
         .titlebar(&header_bar)
@@ -224,7 +216,7 @@ fn tile_button(name: &str,image:&str, window: &ApplicationWindow) -> Button{
 
 fn get_widget(name: &String,window: &ApplicationWindow) -> gtk4::Box{
     match name.as_str(){
-        "Merge" => merge_box(),
+        "Merge" => merge_box(window),
         "Split" => split_box(),
         "Reorganize" => reorg_box(), 
         "Get page" => get_box() ,
@@ -242,13 +234,111 @@ fn warning_box() -> gtk4::Box{
     boxe
 }
 
-/*
-let ebutton = Button::from_icon_name("document-open");
-//let file = FileDialog::builder().build();
- ebutton.connect_clicked( move |_button|{
-        file.open_multiple(Some(&window), gtk4::gio::Cancellable::NONE, move |arg0: Result<gtk4::gio::ListModel, gtk4::glib::Error>| on_select(arg0));
-    });
-    
-    file.set_title("Choose a PDF file");
-    
-    */
+fn style(night_mode : bool){
+    let provider = gtk4::CssProvider::new();
+    if night_mode{
+        provider.load_from_string(
+                " 
+                * {
+                    transition: all 0.5s ease-in-out;
+                }
+                #app-wrapper{
+                    background-color:rgb(75, 73, 73);
+                }
+                #header-bar{
+                    all:unset;
+                    padding: 2px 8px 2px 8px ;
+                    background-color:rgb(20, 20, 20);
+                    color: rgb(255,255,255);
+                }
+                #decision-box, #drop-box{
+                    all: unset;
+                    background-color:rgb(183, 220, 245);
+                    padding: 10px;
+                    border-radius: 20px;
+                }
+                #do-button{
+                    border-radius:5px;
+                }
+                #file-box{
+                    all: unset;
+                    border-radius: 10px;
+                }
+                #row {
+                    background-color:unset;
+                }
+                #manage-box{
+                    background-color:rgb(112, 126, 252);
+                    border-radius: 20px;
+                }
+                #button, #nbutton{
+                    filter:invert(100%);
+                }
+                #nbutton:hover{
+                    background-color: #ff0000;
+                }
+            "
+            );
+    } else{
+        provider.load_from_string(
+                "
+                #header-bar{
+                    background-color: #D6D5C4;
+                    color:unset;
+                }
+                #app-wrapper, #main-window{
+                    background-color: #ffffff;
+                }
+                #decision-box, #drop-box{
+                    all: unset;
+                    background-color:rgb(183, 220, 245);
+                    padding: 10px;
+                    border-radius: 20px;
+                }
+                #do-button{
+                    border-radius:5px;
+                }
+                #drop-box {
+                    transition: background-color 0.5s ease-in-out;
+                }
+                #file-box{
+                    border-radius: 10px;
+                }
+                #row {
+                    background-color:unset;
+                }
+                #manage-box{
+                    background-color:rgb(112, 126, 252);
+                    border-radius: 20px;
+                }
+                #button,
+                #nbutton{
+                    filter:unset;
+                }
+                #add-button,
+                #del-button{
+                    all:unset;
+                    transition: filter 0.5s;
+                    background-color: rgb(57, 71, 196);
+                    padding: 6px;
+                    border-radius: 20px;
+                }
+                #add-button:hover,
+                #del-button:hover{
+                    filter: brightness(0.7);
+                }
+            "
+            );
+        }
+
+
+
+    let display = gtk4::gdk::Display::default().expect("Could not connect to a display.");
+    gtk4::style_context_add_provider_for_display(
+        &display,
+        &provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+
+
+}

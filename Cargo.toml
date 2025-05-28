@@ -9,7 +9,5 @@ gtk4 = {version="0.9.6", package ="gtk4",features = ["v4_6","v4_18"]}
 lopdf = "0.36.0"
 poppler = "0.6.0"
 zip = "4.0.0"
-gio = "0.17"
-glib = "0.17"
 
 

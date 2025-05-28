@@ -1,3 +1,15 @@
 pub fn del_box() -> gtk4::Box{
-    gtk4::Box::builder().build()
+    let margin = 10;
+    let main_box = gtk4::Box::builder()
+        .margin_bottom(margin)
+        .margin_end(margin)
+        .margin_start(margin)
+        .margin_top(margin)
+        .orientation(gtk4::Orientation::Horizontal)
+        .build();
+
+
+
+
+    main_box
 }
