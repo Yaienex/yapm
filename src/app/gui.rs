@@ -1,11 +1,5 @@
-use std::ops::Not;
-use std::process::exit;
 
-use gtk4::gio::ApplicationFlags;
-use gtk4::glib::{self, GString, MainLoop};
-use gtk4::ffi::{gtk_window_controls_get_decoration_layout, GtkSettings};
-use gtk4::glib::{GStr, Value};
-use gtk4::{self as gtk, Grid, Image, Label, ScrolledWindow, Settings, TextView};
+use gtk4::{self as gtk, Grid, Image, Label, ScrolledWindow, TextView};
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Button};
 
@@ -65,15 +59,15 @@ fn build_ui(app :&Application) {
 
     app_wrapper.append(&grid);
     //Merge
-    let merge = tile_button("Merge", "ressources/merge_icon.png",&window);
+    let merge = tile_button("Merge", "/usr/share/yapm/ressources/merge_icon.png",&window);
     //Split
-    let split = tile_button("Split", "ressources/split_icon.png",&window);
+    let split = tile_button("Split", "/usr/share/yapm/ressources/split_icon.png",&window);
     //Reorganize
-    let reorganize = tile_button("Reorganize", "ressources/reorganize_icon.png",&window);
+    let reorganize = tile_button("Reorganize", "/usr/share/yapm/ressources/reorganize_icon.png",&window);
     //Delete pages
-    let del_page = tile_button("Delete pages", "ressources/del_icon.png",&window);
+    let del_page = tile_button("Delete pages", "/usr/share/yapm/ressources/del_icon.png",&window);
     //Get page
-    let get_page = tile_button("Get page", "ressources/get_icon.png",&window);
+    let get_page = tile_button("Get page", "/usr/share/yapm/ressources/get_icon.png",&window);
 
     //Attach the tile which are basically buttons
     grid.attach(&merge, 0, 0,1,1);
@@ -85,10 +79,10 @@ fn build_ui(app :&Application) {
     let help_button = Button::builder().name("button").build();
     let home_button = Button::builder().name("button").build();
     let mode_button = Button::builder().name("button").build();
-    let help_icon = Image::from_file("ressources/help_icon.png");
-    let home_icon = Image::from_file("ressources/home_icon.png");
+    let help_icon = Image::from_file("/usr/share/yapm/ressources/help_icon.png");
+    let home_icon = Image::from_file("/usr/share/yapm/ressources/home_icon.png");
     let mode_icon = Image::builder()
-        .file("ressources/theme_mode_icon.png")
+        .file("/usr/share/yapm/ressources/theme_mode_icon.png")
         .icon_size(gtk4::IconSize::Large)
         .build();
     
@@ -236,10 +230,10 @@ fn warning_box() -> gtk4::Box{
 fn style(night_mode : bool){
     let provider = gtk4::CssProvider::new();
     if night_mode{
-        let file = gtk4::gio::File::for_path("ressources/night_style.css");
+        let file = gtk4::gio::File::for_path("/usr/share/yapm/ressources/night_style.css");
         provider.load_from_file(&file);
     } else{
-        let file = gtk4::gio::File::for_path("ressources/day_style.css");
+        let file = gtk4::gio::File::for_path("/usr/share/yapm/ressources/day_style.css");
         provider.load_from_file(&file);
     }
 
