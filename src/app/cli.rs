@@ -51,7 +51,7 @@ pub fn cli_handler(args:&mut Vec<String>){
 }
 
 
-fn split(args:&mut Vec<String>) {
+pub fn split(args:&mut Vec<String>) {
     //Doc req
     let document;
     let _pdf_name;
@@ -115,7 +115,7 @@ fn split(args:&mut Vec<String>) {
 
 }
 
-fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
+pub fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
     // Define a starting `max_id` (will be used as start index for object_ids).
     let mut max_id = 1;
     let mut pagenum = 1;
@@ -289,7 +289,7 @@ fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
     Ok(())
 }
 
-fn reorganize(args:&mut Vec<String>){
+pub fn reorganize(args:&mut Vec<String>){
     let document;
     let pdf_name;
     (document,pdf_name)  = load_doc(args);
@@ -357,7 +357,7 @@ fn help(args:&mut Vec<String>){
     
 }
 
-fn compress_help(full:bool){
+pub fn compress_help(full:bool){
     if full{
         println!("- {} : compress the given pdf file (Do not expect a good compression)\n\t[USAGE] yapm compress <pdf file>","compress".blue());
     }else {

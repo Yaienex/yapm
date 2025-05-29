@@ -1,0 +1,47 @@
+* {
+    transition: all 0.5s ease-in-out;
+}
+
+#app-wrapper{
+    background-color:rgb(75, 73, 73);
+}
+            
+#header-bar{
+    all:unset;
+    padding: 2px 8px 2px 8px ;
+    background-color:rgb(20, 20, 20);
+    color: rgb(255,255,255);
+}
+                
+#decision-box, #drop-box{
+    all: unset;
+    background-color:rgb(183, 220, 245);
+    padding: 10px;
+    border-radius: 20px;
+}
+
+#do-button{
+    border-radius:5px;
+}
+
+#file-box{
+    all: unset;
+    border-radius: 10px;
+}
+                
+#row {
+    background-color:unset;
+}
+        
+#manage-box{
+    background-color:rgb(112, 126, 252);
+    border-radius: 20px;
+}
+                
+#button, #nbutton{
+    filter:invert(100%);
+}
+                
+#nbutton:hover{
+    background-color: #ff0000;
+}

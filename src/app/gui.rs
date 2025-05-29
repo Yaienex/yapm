@@ -1,10 +1,11 @@
 use std::ops::Not;
 use std::process::exit;
 
-use gtk4::glib::GString;
+use gtk4::gio::ApplicationFlags;
+use gtk4::glib::{self, GString, MainLoop};
 use gtk4::ffi::{gtk_window_controls_get_decoration_layout, GtkSettings};
 use gtk4::glib::{GStr, Value};
-use gtk4::{self as gtk, Grid,Image, Label, ScrolledWindow, TextView};
+use gtk4::{self as gtk, Grid, Image, Label, ScrolledWindow, Settings, TextView};
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Button};
 
@@ -17,21 +18,18 @@ use super::split_box::split_box;
 
 
 pub fn app(){
+    let _ = gtk::init();
     let app = Application::builder()
-        .application_id("org.yapm")
+        .application_id("org.yaienex.yapm")
         .build();
-
-
     app.connect_activate(build_ui);
-
-    
     let mut no_args : [&str; 0] = [];
     app.run_with_args (&mut no_args);();
-
+    //app.run();
 }
 
 
-fn build_ui(app: &Application) {
+fn build_ui(app :&Application) {
     style( false);
     let margin = 20;
     let inter_spacing = 10;
@@ -105,6 +103,7 @@ fn build_ui(app: &Application) {
     window.set_titlebar(Some(&header_bar));
     window.present();
 
+    let win = window.clone();
     home_button.connect_clicked(move |_e|{
         window.set_child(Some(&app_wrapper));
     });
@@ -122,7 +121,6 @@ fn build_ui(app: &Application) {
         }
     });
 
- 
     
 }
 
@@ -139,6 +137,7 @@ fn help_button_clicked() {
         .cursor_visible(false)
         .build();
     let buff = text.buffer();
+    
     //TODO THE DOC 
     buff.set_text("ca earea <\\span> aaaaaaa\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ca");
    
@@ -237,101 +236,12 @@ fn warning_box() -> gtk4::Box{
 fn style(night_mode : bool){
     let provider = gtk4::CssProvider::new();
     if night_mode{
-        provider.load_from_string(
-                " 
-                * {
-                    transition: all 0.5s ease-in-out;
-                }
-                #app-wrapper{
-                    background-color:rgb(75, 73, 73);
-                }
-                #header-bar{
-                    all:unset;
-                    padding: 2px 8px 2px 8px ;
-                    background-color:rgb(20, 20, 20);
-                    color: rgb(255,255,255);
-                }
-                #decision-box, #drop-box{
-                    all: unset;
-                    background-color:rgb(183, 220, 245);
-                    padding: 10px;
-                    border-radius: 20px;
-                }
-                #do-button{
-                    border-radius:5px;
-                }
-                #file-box{
-                    all: unset;
-                    border-radius: 10px;
-                }
-                #row {
-                    background-color:unset;
-                }
-                #manage-box{
-                    background-color:rgb(112, 126, 252);
-                    border-radius: 20px;
-                }
-                #button, #nbutton{
-                    filter:invert(100%);
-                }
-                #nbutton:hover{
-                    background-color: #ff0000;
-                }
-            "
-            );
+        let file = gtk4::gio::File::for_path("ressources/night_style.css");
+        provider.load_from_file(&file);
     } else{
-        provider.load_from_string(
-                "
-                #header-bar{
-                    background-color: #D6D5C4;
-                    color:unset;
-                }
-                #app-wrapper, #main-window{
-                    background-color: #ffffff;
-                }
-                #decision-box, #drop-box{
-                    all: unset;
-                    background-color:rgb(183, 220, 245);
-                    padding: 10px;
-                    border-radius: 20px;
-                }
-                #do-button{
-                    border-radius:5px;
-                }
-                #drop-box {
-                    transition: background-color 0.5s ease-in-out;
-                }
-                #file-box{
-                    border-radius: 10px;
-                }
-                #row {
-                    background-color:unset;
-                }
-                #manage-box{
-                    background-color:rgb(112, 126, 252);
-                    border-radius: 20px;
-                }
-                #button,
-                #nbutton{
-                    filter:unset;
-                }
-                #add-button,
-                #del-button{
-                    all:unset;
-                    transition: filter 0.5s;
-                    background-color: rgb(57, 71, 196);
-                    padding: 6px;
-                    border-radius: 20px;
-                }
-                #add-button:hover,
-                #del-button:hover{
-                    filter: brightness(0.7);
-                }
-            "
-            );
-        }
-
-
+        let file = gtk4::gio::File::for_path("ressources/day_style.css");
+        provider.load_from_file(&file);
+    }
 
     let display = gtk4::gdk::Display::default().expect("Could not connect to a display.");
     gtk4::style_context_add_provider_for_display(

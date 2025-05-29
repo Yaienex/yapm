@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 colored = "3.0.0"
-gtk4 = {version="0.9.6", package ="gtk4",features = ["v4_6","v4_18"]}
+gtk4 = {version="0.9.6", package ="gtk4",  default-features = false, features = ["v4_6","v4_18"]}
 lopdf = "0.36.0"
-poppler = "0.6.0"
+poppler-rs = "0.24.1"
 zip = "4.0.0"
 
 
