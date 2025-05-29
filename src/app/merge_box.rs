@@ -1,7 +1,6 @@
-use std::{cell::RefCell, path::{self, PathBuf}, process::exit, rc::Rc, str::FromStr};
+use std::{cell::RefCell, path::PathBuf, process::exit, rc::Rc};
 
-use colored::Colorize;
-use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, Cancellable, File, Icon, Menu, MenuItem}, glib::{clone::Downgrade, object::{Cast, ObjectExt}, property::PropertyGet, GString, List, Propagation, SignalHandlerId, Value}, gsk::Path, prelude::{AccessibleExt, BoxExt, ButtonExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ActionBar, ApplicationWindow, Button, CssProvider, DrawingArea, DropTarget, DropTargetAsync, EventControllerKey, FileDialog, GestureClick, HeaderBar, Image, InfoBar, Label, ListBox, ListBoxRow, TextBuffer, TextView, Widget};
+use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString, Propagation},  prelude::{ BoxExt, ButtonExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ActionBar, ApplicationWindow, Button, DrawingArea, DropTarget,  EventControllerKey, FileDialog, HeaderBar, Image, Label, ListBox, ListBoxRow,  TextView};
 use lopdf::Document;
 use poppler::Document as PopDocument;
 
@@ -79,12 +78,28 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
         .hexpand(true)
         .build();
 
+    //manage button
+    let add_button = button_builder("/usr/share/yapm/ressources/plus_icon.png".to_string());
+    let del_button = button_builder("/usr/share/yapm/ressources/del_icon.png".to_string());
     
-    let add_button = button_builder("ressources/plus_icon.png".to_string());
-    let del_button = button_builder("ressources/del_icon.png".to_string());
-    
+    //Move actions box
+    let up_button = move_button_builder("/usr/share/yapm/ressources/up_icon.png".to_string(),true,file_box.clone());
+    let down_button = move_button_builder("/usr/share/yapm/ressources/down_icon.png".to_string(),false,file_box.clone());
+
+    let move_box = gtk4::Box::builder()
+        .name("move-box")
+        .halign(gtk4::Align::Center)
+        .valign(gtk4::Align::Center)
+        .hexpand(true)
+        .orientation(gtk4::Orientation::Horizontal)
+        .build();
+   
+    move_box.append(&up_button);move_box.append(&down_button);
+
+    //Pdf view button
+    let pdf_button = button_builder("/usr/share/yapm/ressources/loupe_icon.png".to_string());
+
     let win = window.clone().to_owned();
-    let window = win.clone();
     let f_box = file_box.clone();
     add_button.connect_clicked(move |_e|{
         let file = FileDialog::builder().title("Choose your pdf files").build();
@@ -93,24 +108,48 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
   
     });
 
-    let file_box = f_box.clone();
-    del_button.connect_clicked(move |_e|{
-        if f_box.selected_row().is_some(){
-            f_box.remove(&f_box.selected_row().unwrap());
+    let fb = f_box.clone();
+    pdf_button.connect_clicked(move |button|{
+        let row_option = f_box.selected_row();
+        button.set_sensitive(false);
+        if row_option.is_some(){
+
+            //get the full path from the hidden label
+            let row = row_option.unwrap();
+            let label_hid = row.first_child()
+                .unwrap()
+                .downcast::<gtk4::Box>()
+                .unwrap()
+                .first_child()
+                .unwrap()
+                .downcast::<Label>()
+                .unwrap().label();
+
+            pdf_display(label_hid.to_string(),button.clone());
+
         }
     });
 
+    let file_box = fb.clone();
+    del_button.connect_clicked(move |_e|{
+        if fb.selected_row().is_some(){
+            fb.remove(&fb.selected_row().unwrap());
+        }
+    });
+    
+
 
     action_bar.pack_start(&add_button);
+    action_bar.pack_start(&pdf_button);
+    action_bar.set_center_widget(Some(&move_box));
     action_bar.pack_end(&del_button);
 
     manage_box.append(&action_bar);
 
 
     drop_box.append(&manage_box);
-
     //The action button on the bottom right
-    let do_button = do_button_builder(file_box,window);
+    let do_button = do_button_builder(file_box);
    
     //Setting up everything 
     decision_box.append(&information_box);
@@ -132,7 +171,7 @@ fn button_builder(icon_path:String) -> Button{
     return button;
 }
 
-fn do_button_builder(file_box:ListBox,window:ApplicationWindow) -> Button{
+fn do_button_builder(file_box:ListBox) -> Button{
     let do_button =Button::builder()
         .valign(gtk4::Align::End)
         .vexpand(false)
@@ -175,14 +214,80 @@ fn do_button_builder(file_box:ListBox,window:ApplicationWindow) -> Button{
     do_button
 }
 
+fn move_button_builder(icon_path:String,flag:bool,file_box: ListBox) -> Button {
+    let button:Button;
+    if flag {
+        button =Button::builder()
+            .valign(gtk4::Align::Start)
+            .vexpand(false)
+            .name("move-button")
+            .build();
+        button.connect_clicked(move |_b|{
+            let mut row_option = file_box.selected_row();
+            let fb = file_box.clone();
+            if  row_option.is_some(){
+                let row = row_option.clone().unwrap();
+                let (_n,row_index) = count(file_box.clone(),row.clone());
+                
+                if row_index > 0 { //we can't go up at row 0
+                    file_box.remove(&row);
+                    file_box.insert(&row,row_index-1);
+                    row_option = file_box.row_at_index(row_index-1);
+                    file_box.unselect_row(&row);
+                   
+                }
+                
+                fb.select_row(row_option.as_ref());
+            
+            }
+        });
+    }
+    else{
+         button =Button::builder()
+            .valign(gtk4::Align::End)
+            .vexpand(false)
+            .name("move-button")
+            .build();
+
+        button.connect_clicked(move |_b|{
+            let mut row_option = file_box.selected_row();
+            let fb = file_box.clone();
+            if  row_option.is_some(){
+                let row = row_option.clone().unwrap();
+                let (n,row_index) = count(file_box.clone(),row.clone());
+                if row_index < n { //we can't go down at row n
+                    file_box.remove(&row);
+                    file_box.insert(&row,row_index+1);
+                    row_option = file_box.row_at_index(row_index+1);
+                    file_box.unselect_row(&row);
+                }
+
+                fb.select_row(row_option.as_ref());
+            
+
+            }
+        });
+    }
+    let button_icon = Image::from_file(icon_path);
+
+    button.set_child(Some(&button_icon));
+
+    button
+}
+
 fn information_box_builder() -> (gtk4::Box,DrawingArea,Label,Label,Label){
     let info_box = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
         .vexpand(true)
         .name("info-box")
         .build();
-    //file name / page number / full path / preview ?
-    let pdf_preview = DrawingArea::new();
+    let pdf_preview = DrawingArea::builder()
+        .name("pdf-preview")
+        .vexpand(true)
+        .width_request(100)
+        .height_request(100)
+        .valign(gtk4::Align::Fill)
+        .build();
 
     //Every boxes
     let (name_box,name_content) = info_box_subbox_builder("Name :",false);
@@ -191,7 +296,6 @@ fn information_box_builder() -> (gtk4::Box,DrawingArea,Label,Label,Label){
 
     let global_box = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
-        .vexpand(true)
         .name("global-box")
         .valign(gtk4::Align::End)
         .build();
@@ -209,6 +313,8 @@ fn info_box_subbox_builder(label: &str,vertical:bool) -> (gtk4::Box,Label){
    let sub_box:gtk4::Box;
    if vertical{
     sub_box =gtk4::Box::builder()
+        .margin_top(5)
+        .margin_bottom(5)
         .orientation(gtk4::Orientation::Vertical)
         .build();
    } else{
@@ -224,7 +330,9 @@ fn info_box_subbox_builder(label: &str,vertical:bool) -> (gtk4::Box,Label){
 
     let content = Label::builder()
         .label("")
-        .halign(gtk4::Align::End)
+        .wrap(true)
+        .wrap_mode(gdk::pango::WrapMode::Word)
+        .halign(gtk4::Align::Start)
         .build();
 
     sub_box.append(&name);
@@ -268,7 +376,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
         .build();
 
     //Show information on the Decision Box !
-    file_box.connect_row_selected(move |_e,row|{
+    file_box.connect_row_selected(move |file_box,row|{
     if row.is_some(){
         let abs_path = row.unwrap()
             .child() //row child
@@ -293,7 +401,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
             full_path_content.set_label(&abs_path);
         };
 
-    
+        file_box.select_row(row);
     });
     file_box
 }
@@ -541,8 +649,25 @@ fn folder_window(do_button :Button,file_box:ListBox,number:i32){
     
 }
 
+fn count(file_box: ListBox,row_to_find:ListBoxRow) -> (i32,i32){
+    let mut number:i32 = 0;
+    let mut row_index:i32 =0;
+    let mut row: Option<ListBoxRow> = file_box.row_at_index(number );
+    while row.is_some() {
+        if row.unwrap() == row_to_find{
+            row_index = number;
+        }
+            number +=1;
+            row = file_box.row_at_index(number );
+            
+    } 
 
-fn pdf_display(filename: String){
+    (number -1, row_index)
+}
+
+fn pdf_display(filename: String,button:Button){
+
+    let filename = format!("file://{filename}");
      let app_wrapper = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
         .build();
@@ -590,7 +715,6 @@ fn pdf_display(filename: String){
 
     let doc = PopDocument::from_file(filename.as_str(), Some("")).unwrap();
     let num_pages = doc.n_pages();
-    let num_pages_ref = Rc::new(RefCell::new(num_pages));
 
     let current_page = Rc::new(RefCell::new(1));
     let current_page_copy_another = current_page.clone();
@@ -655,6 +779,13 @@ fn pdf_display(filename: String){
 
             ctx.show_page().unwrap();
         });
+
+        window.connect_close_request(move |_w|{
+            button.set_sensitive(true);
+
+            Propagation::Proceed
+        });
+
         window.present()
 }
 
@@ -679,7 +810,7 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
     }
 }
 
-fn _on_save(arg : Result<File, gdk::glib::Error>,pdf_list :Vec<Document>){
+fn _on_save(arg : Result<File, gdk::glib::Error>,_pdf_list :Vec<Document>){
     if !arg.is_err(){
         let file = arg.unwrap();
         //let tmp = file.path().unwrap();
