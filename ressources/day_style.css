@@ -71,7 +71,3 @@
 #move-button:hover{
     filter: brightness(0.7);
 }
-
-#pdf-preview{
-    background-color: #ff0000;
-}

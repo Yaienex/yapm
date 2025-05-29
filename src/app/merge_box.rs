@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, process::exit, rc::Rc};
 
-use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString, Propagation},  prelude::{ BoxExt, ButtonExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ActionBar, ApplicationWindow, Button, DrawingArea, DropTarget,  EventControllerKey, FileDialog, HeaderBar, Image, Label, ListBox, ListBoxRow,  TextView};
+use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString, Propagation},  prelude::{ BoxExt, ButtonExt, DrawingAreaExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ActionBar, ApplicationWindow, Button, DrawingArea, DropTarget,  EventControllerKey, FileDialog, HeaderBar, Image, Label, ListBox, ListBoxRow,  TextView};
 use lopdf::Document;
 use poppler::Document as PopDocument;
 
@@ -58,7 +58,7 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
     //drop_box.add_controller(drop_box_controller); Delaying this to focus on a working application 
     
     //Manage pdf file from the UI
-    let file_box = file_box(name_content,page_number_content,full_path_content);
+    let file_box = file_box(name_content,page_number_content,full_path_content,draw_area);
     drop_box.append(&file_box);
 
     let manage_box = gtk4::Box::builder()
@@ -290,7 +290,7 @@ fn information_box_builder() -> (gtk4::Box,DrawingArea,Label,Label,Label){
         .build();
 
     //Every boxes
-    let (name_box,name_content) = info_box_subbox_builder("Name :",false);
+    let (name_box,name_content) = info_box_subbox_builder("Name :",true);
     let (page_number_box,page_number_content) =info_box_subbox_builder("Number of pages :",false);
     let (full_path_box,full_path_content) = info_box_subbox_builder("Absolute path :",true);
 
@@ -309,20 +309,21 @@ fn information_box_builder() -> (gtk4::Box,DrawingArea,Label,Label,Label){
 }
 
 fn info_box_subbox_builder(label: &str,vertical:bool) -> (gtk4::Box,Label){
-
-   let sub_box:gtk4::Box;
-   if vertical{
-    sub_box =gtk4::Box::builder()
-        .margin_top(5)
-        .margin_bottom(5)
-        .orientation(gtk4::Orientation::Vertical)
-        .build();
-   } else{
-     sub_box =gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Horizontal)
-        .build();
-   }
-   let name = Label::builder()
+    let label = format!("<b>{label}</b>");
+    let sub_box:gtk4::Box;
+    if vertical{
+         sub_box =gtk4::Box::builder()
+            .margin_top(5)
+            .margin_bottom(5)
+            .orientation(gtk4::Orientation::Vertical)
+            .build();
+    } else{
+        sub_box =gtk4::Box::builder()
+            .orientation(gtk4::Orientation::Horizontal)
+            .build();
+    }
+    let name = Label::builder()
+        .use_markup(true)
         .label(label)
         .margin_end(10)
         .halign(gtk4::Align::Start)
@@ -366,7 +367,7 @@ fn row_file(path : PathBuf,name:&str) -> ListBoxRow{
     return  row;
 }
 
-fn file_box(name_content: Label,page_number_content:Label,full_path_content:Label) -> ListBox{
+fn file_box(name_content: Label,page_number_content:Label,full_path_content:Label,draw_area:DrawingArea) -> ListBox{
     let file_box = gtk4::ListBox::builder()
         .name("file-box")
         .halign(gtk4::Align::Fill)
@@ -377,28 +378,68 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
 
     //Show information on the Decision Box !
     file_box.connect_row_selected(move |file_box,row|{
-    if row.is_some(){
-        let abs_path = row.unwrap()
-            .child() //row child
-            .unwrap()//Box
-            .downcast::<gtk4::Box>()
-            .unwrap()
-            .first_child()
-            .unwrap()
-            .downcast::<Label>()
-            .unwrap().label();
-        let parse_path:Vec<&str> = abs_path.split("/").collect();
-        let name = parse_path[parse_path.len() -1];
-        let uri_file = format!("file://{}",&abs_path.to_string());
-        let doc = match PopDocument::from_file(&uri_file, Some("")){
+        if row.is_some(){
+            let abs_path = row.unwrap()
+                .child() //row child
+                .unwrap()//Box
+                .downcast::<gtk4::Box>()
+                .unwrap()
+                .first_child()
+                .unwrap()
+                .downcast::<Label>()
+                .unwrap().label();
+            let parse_path:Vec<&str> = abs_path.split("/").collect();
+            let name = parse_path[parse_path.len() -1];
+            let uri_file = format!("file://{}",&abs_path.to_string());
+            let doc = match PopDocument::from_file(&uri_file, Some("")){
                 Ok(doc) => doc,
                 Err(er) => {println!("{:?}",er);exit(1);}
             };
-            
+                
             //Updating the info frame
             name_content.set_label(name);
             page_number_content.set_label(doc.n_pages().to_string().as_str());
             full_path_content.set_label(&abs_path);
+
+            //Drawing 
+            let surface = cairo::ImageSurface::create(cairo::Format::Rgb24, 0, 0).unwrap();
+            let ctx = Context::new(&surface).unwrap();
+          
+            draw_area.set_draw_func(move |area, context, _a, _b| {
+                let page = doc.page(0).unwrap();
+                let (w, h) = page.size();
+                let (width,height) = (area.width(),area.height());
+
+
+                context.set_source_rgba(1.0, 1.0, 1.0, 1.0);
+                context.paint().unwrap();
+                context.fill().expect("nuh uh");
+                context.paint().unwrap();
+
+
+                let scale_x = width as f64 / w;
+                let scale_y = height as f64 / h;
+                let scale = scale_x.min(scale_y); // Keep proportions
+
+                // Center
+                let offset_x = (width as f64 - w * scale) / 2.0;
+                let offset_y = (height as f64 - h * scale) / 2.0;
+                context.save().unwrap();
+
+                context.translate(offset_x, offset_y);
+                context.scale(scale, scale);
+
+                // Dessine la page
+                page.render(&context);
+
+                let r = ctx.paint();
+                match r {
+                    Err(v) => println!("Error painting PDF: {v:?}"),
+                    Ok(_v) => _v,
+                }
+
+                ctx.show_page().unwrap();
+            });
         };
 
         file_box.select_row(row);
@@ -406,6 +447,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
     file_box
 }
 
+#[allow(unused_assignments)]
 fn folder_window(do_button :Button,file_box:ListBox,number:i32){
     let margin = 10;
     let bar = HeaderBar::builder()
@@ -677,13 +719,9 @@ fn pdf_display(filename: String,button:Button){
     let bt = bottom_bar.clone();
     app_wrapper.append(&bottom_bar);
 
-    let window = ApplicationWindow::builder()
-        .child(&app_wrapper)
-        .build();
-    window.set_titlebar(Some(&header_bar));
-
+    let hb = header_bar.clone();
     let toggle_fullscreen =  move || {
-        if header_bar.is_visible() {
+        if header_bar.clone().is_visible() {
             header_bar.set_visible(false);
             bottom_bar.set_visible(false);
         } else {
@@ -699,6 +737,8 @@ fn pdf_display(filename: String,button:Button){
         .hexpand(true)
         .vexpand(true)
         .build();
+
+    
     let first_child = app_wrapper.first_child().unwrap();
     let last_child = app_wrapper.last_child().unwrap();
     if &first_child != &last_child {
@@ -715,6 +755,16 @@ fn pdf_display(filename: String,button:Button){
 
     let doc = PopDocument::from_file(filename.as_str(), Some("")).unwrap();
     let num_pages = doc.n_pages();
+
+    drawing_area.set_content_height(doc.page(0).unwrap().size().1 as i32);
+    drawing_area.set_content_width(doc.page(0).unwrap().size().0 as i32);
+    let window = ApplicationWindow::builder()
+        .child(&app_wrapper)
+        .default_height(doc.page(0).unwrap().size().1 as i32)
+        .default_width(doc.page(0).unwrap().size().0 as i32)
+        .resizable(false)
+        .build();
+    window.set_titlebar(Some(&hb));
 
     let current_page = Rc::new(RefCell::new(1));
     let current_page_copy_another = current_page.clone();

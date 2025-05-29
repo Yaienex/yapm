@@ -38,8 +38,9 @@ fn build_ui(app :&Application) {
         .name("main-window")
         .title("Yet Another PDF Merger")
         .child(&app_wrapper)
-        .default_width(800)
-        .default_height(400)
+        .resizable(false)
+        .default_width(700)
+        .default_height(600)
         .build();
 
     //Grid with the button tiles to choose which mode you'll choose
@@ -96,8 +97,6 @@ fn build_ui(app :&Application) {
 
     window.set_titlebar(Some(&header_bar));
     window.present();
-
-    let win = window.clone();
     home_button.connect_clicked(move |_e|{
         window.set_child(Some(&app_wrapper));
     });
