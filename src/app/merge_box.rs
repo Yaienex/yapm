@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, process::exit, rc::Rc};
 
-use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString, Propagation},  prelude::{ BoxExt, ButtonExt, DrawingAreaExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ActionBar, ApplicationWindow, Button, DrawingArea, DropTarget,  EventControllerKey, FileDialog, HeaderBar, Image, Label, ListBox, ListBoxRow,  TextView};
+use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString, Propagation},  prelude::{ BoxExt, ButtonExt, DrawingAreaExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, DrawingArea, DropTarget,  EventControllerKey, FileDialog, HeaderBar, Image, Label, ListBox, ListBoxRow,  TextView};
 use lopdf::Document;
 use poppler::Document as PopDocument;
 
@@ -17,6 +17,7 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
     //Main widget - Left Box
     let main_box = gtk4::Box::builder()
         .margin_bottom(margin*3)
+        .name("main-box")
         .margin_end(margin*3)
         .margin_start(margin*3)
         .margin_top(margin*3)
@@ -31,7 +32,7 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
         .margin_start(margin)
         .margin_top(margin)
         .name("decision-box")
-        .halign(gtk4::Align::End)
+        .halign(gtk4::Align::Fill)
         .build();
 
     //Inside decision box
@@ -61,24 +62,19 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
     let file_box = file_box(name_content,page_number_content,full_path_content,draw_area);
     drop_box.append(&file_box);
 
-    let manage_box = gtk4::Box::builder()
-        .name("manage-box")
-        .halign(gtk4::Align::Fill)
-        .vexpand(false)
-        .valign(gtk4::Align::Fill)
-        .hexpand(true)
-        .orientation(gtk4::Orientation::Horizontal)
-        .build();
-   
     //Action bar 
-    let action_bar = ActionBar::builder()
+    let action_bar = gtk4::Box::builder()
+        .name("action-bar")
+        .margin_top(1)
         .halign(gtk4::Align::Fill)
         .vexpand(false)
-        .valign(gtk4::Align::Fill)
+        .valign(gtk4::Align::End)
         .hexpand(true)
         .build();
 
-    //manage button
+    /*
+    manage button
+    */
     let add_button = button_builder("/usr/share/yapm/ressources/plus_icon.png".to_string());
     let del_button = button_builder("/usr/share/yapm/ressources/del_icon.png".to_string());
     
@@ -105,7 +101,6 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
         let file = FileDialog::builder().title("Choose your pdf files").build();
         let f_box = file_box.clone();
         file.open_multiple(Some(&win), gtk4::gio::Cancellable::NONE,  move |arg0: Result<gtk4::gio::ListModel, gtk4::glib::Error>| on_select(arg0,f_box));
-  
     });
 
     let fb = f_box.clone();
@@ -138,16 +133,21 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
     });
     
 
+    //Sorting them
+    add_button.set_halign(gtk4::Align::Start);
+    pdf_button.set_halign(gtk4::Align::Start);
+    move_box.set_halign(gtk4::Align::Center);
+    del_button.set_halign(gtk4::Align::End);
 
-    action_bar.pack_start(&add_button);
-    action_bar.pack_start(&pdf_button);
-    action_bar.set_center_widget(Some(&move_box));
-    action_bar.pack_end(&del_button);
-
-    manage_box.append(&action_bar);
+    action_bar.append(&add_button);
+    action_bar.append(&pdf_button);
+    action_bar.append(&move_box);
+    action_bar.append(&del_button);
 
 
-    drop_box.append(&manage_box);
+
+    drop_box.append(&action_bar);
+    
     //The action button on the bottom right
     let do_button = do_button_builder(file_box);
    
@@ -165,6 +165,8 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
 fn button_builder(icon_path:String) -> Button{
     let icon = Image::from_file(icon_path);
     let button = Button::builder()
+        .margin_start(5)
+        .margin_end(5)
         .child(&icon)
         .name("add-button")
         .build(); 
@@ -175,13 +177,23 @@ fn do_button_builder(file_box:ListBox) -> Button{
     let do_button =Button::builder()
         .valign(gtk4::Align::End)
         .vexpand(false)
+        .halign(gtk4::Align::Fill)
         .name("do-button")
         .build();
     let do_button_box = gtk4::Box::builder()
+        .halign(gtk4::Align::Fill)
+        .hexpand(true)
         .orientation(gtk4::Orientation::Horizontal)
         .build();
-    let do_button_label = Label::new(Some("Merge"));
-    let do_button_icon = Image::from_file("ressources/merge_icon.png");
+    let do_button_label = Label::builder()
+        .label("Merge")
+        .hexpand(true)
+        .halign(gtk4::Align::Center)
+        .build();
+    let do_button_icon = Image::builder()
+        .file("/usr/share/yapm/ressources/merge_icon.png")
+        .halign(gtk4::Align::Start)
+        .build();
     do_button_icon.set_icon_size(gtk4::IconSize::Large);
 
 
@@ -218,6 +230,7 @@ fn move_button_builder(icon_path:String,flag:bool,file_box: ListBox) -> Button {
     let button:Button;
     if flag {
         button =Button::builder()
+            .margin_end(5)
             .valign(gtk4::Align::Start)
             .vexpand(false)
             .name("move-button")
@@ -245,6 +258,7 @@ fn move_button_builder(icon_path:String,flag:bool,file_box: ListBox) -> Button {
     else{
          button =Button::builder()
             .valign(gtk4::Align::End)
+            .margin_start(5)
             .vexpand(false)
             .name("move-button")
             .build();
@@ -313,12 +327,14 @@ fn info_box_subbox_builder(label: &str,vertical:bool) -> (gtk4::Box,Label){
     let sub_box:gtk4::Box;
     if vertical{
          sub_box =gtk4::Box::builder()
+            .name("subinfo-box")
             .margin_top(5)
             .margin_bottom(5)
             .orientation(gtk4::Orientation::Vertical)
             .build();
     } else{
         sub_box =gtk4::Box::builder()
+            .name("subinfo-box")
             .orientation(gtk4::Orientation::Horizontal)
             .build();
     }

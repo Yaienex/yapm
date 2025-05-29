@@ -164,6 +164,7 @@ fn tile_button(name: &str,image:&str, window: &ApplicationWindow) -> Button{
     let margin = 10;
     let window = window.clone();
     let button = Button::builder()
+        .name("tile-button")
         .vexpand(true)
         .hexpand(true)
         .build();
