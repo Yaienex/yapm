@@ -210,10 +210,10 @@ fn tile_button(name: &str,image:&str, window: &ApplicationWindow) -> Button{
 fn get_widget(name: &String,window: &ApplicationWindow) -> gtk4::Box{
     match name.as_str(){
         "Merge" => merge_box(window),
-        "Split" => split_box(),
-        "Reorganize" => reorg_box(), 
-        "Get page" => get_box() ,
-        "Delete pages" => del_box(),
+        "Split" => split_box(window),
+        "Reorganize" => reorg_box(window), 
+        "Get page" => get_box(window) ,
+        "Delete pages" => del_box(window),
         _ => warning_box(),
     }
 
