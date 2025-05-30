@@ -76,7 +76,9 @@ pub fn widget_builder(action_name:String,
     let file_box = fb.clone();
     del_button.connect_clicked(move |_e|{
         if fb.selected_row().is_some(){
-            fb.remove(&fb.selected_row().unwrap());
+            let row =&fb.selected_row().unwrap();
+            fb.remove(row);
+            fb.emit_unselect_all();
         }
     });
     
@@ -337,8 +339,13 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
         .vexpand(true)
         .build();
 
+    let nc = name_content.clone();
+    let pnc = page_number_content.clone();
+    let fpc = full_path_content.clone();
+    let da = draw_area.clone();
     //Show information on the Decision Box !
     file_box.connect_row_selected(move |file_box,row|{
+        draw_area.set_visible(true);
         if row.is_some(){
             let abs_path = row.unwrap()
                 .child() //row child
@@ -404,6 +411,17 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
         };
 
         file_box.select_row(row);
+    });
+
+    file_box.connect_unselect_all(move |_file_box|{
+        nc.set_label("");
+        pnc.set_label("");
+        fpc.set_label("");
+        da.set_draw_func(|_, cr, _, _| {
+            cr.set_source_rgb(1.0, 1.0, 1.0); // white background
+            cr.paint().unwrap(); // fill with white
+        });
+
     });
     file_box
 }
@@ -554,8 +572,6 @@ fn pdf_display(filename: String,button:Button){
                 .map(|k| k.modifier_state().contains(ModifierType::SHIFT_MASK))
                 .unwrap_or(false);
 
-            println!("control {control_pressed} / shift {shift_pressed}");
-
             // shift check to block scroll behavior 
             if shift_pressed  {
                     //PDF Zoom
@@ -595,9 +611,6 @@ fn pdf_display(filename: String,button:Button){
 
             Propagation::Proceed
         });
-
-        
-
         
         window.present()
 }
@@ -631,10 +644,9 @@ pub fn row_file(path : PathBuf,name:&str) -> ListBoxRow{
 
 
 #[allow(unused_assignments)]
-pub fn folder_window(do_button :Button,number:i32) -> (Button,
+pub fn folder_window(do_button :Button,extension:&str) -> (Button,
                                                                         TextBuffer,
-                                                                        i32,
-                                                                        ApplicationWindow){
+                                                            ApplicationWindow){
     let margin = 10;
     let bar = HeaderBar::builder()
         .build();
@@ -745,6 +757,7 @@ pub fn folder_window(do_button :Button,number:i32) -> (Button,
     let pcb = path_check_box.clone();
     let accept_button = acb.clone();
     acb.set_sensitive(false);
+    let extension = extension.to_string();
     path_content_buffer.connect_changed(move |buff|{
         let path = buff.text(&buff.start_iter(), &buff.end_iter(), true).to_string();
         let mut path_str :String = String::new();
@@ -780,8 +793,8 @@ pub fn folder_window(do_button :Button,number:i32) -> (Button,
         else if !path_buf.is_dir() && ps !="/"{
             message = format!("An <span foreground=\"red\">existing</span> directory is needed");
             accept_button.set_sensitive(true); //a warning window on popup | it will create a pdf with a default name
-        } else if !file_name.ends_with(".pdf"){
-            message = format!("A <span foreground=\"red\">pdf extension</span> is needed");
+        } else if !file_name.ends_with(&extension){
+            message = format!("A <span foreground=\"red\"> {extension} extension</span> is needed");
             accept_button.set_sensitive(true);//just place the damn .pdf extension at the end
         }
 
@@ -803,7 +816,7 @@ pub fn folder_window(do_button :Button,number:i32) -> (Button,
     });
     
     //return the necessary objects to connect the action 
-    (acb,path_content_buffer,number,win)
+    (acb,path_content_buffer,win)
     
 }
 

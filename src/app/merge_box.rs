@@ -30,7 +30,7 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
 
         if number != 0{
             //should use file.save but it ain't working
-            let (accept_button_fwin,path_content_buffer,number,fwin) = folder_window(b.clone(),number);
+            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf");
             accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin);
         }
     
@@ -67,6 +67,7 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
             //Appending the list
             let row = row_file(path,name);
             file_box.append(&row);
+            file_box.select_row(Some(&row));
         }
     }
 }
@@ -108,7 +109,7 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
             }
         }
 
-        let path: String = {
+        let write_path: String = {
             let pds = path_dir.to_str().unwrap();
             let pbs = path_buf.to_str().unwrap();
             if flag{
@@ -141,7 +142,7 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
         }
         
         //here
-        cli::merge(pdf_list, &path);
+        cli::merge(pdf_list, &write_path);
         b.set_sensitive(true);
         win.close();
     });

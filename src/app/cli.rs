@@ -1,10 +1,12 @@
 use std::process::exit;
+use gtk4::cairo;
 use zip::write::SimpleFileOptions;
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::vec;
+use poppler::Document as PopplerDocument;
 use lopdf::{Document, Object, ObjectId, Bookmark};
 use colored::Colorize;
 use crate::app::gui::app;
@@ -43,7 +45,7 @@ pub fn cli_handler(args:&mut Vec<String>){
         "compress" =>compress(args),
         "get" | "g" => get_page(args),
         "delete" |"del" |"d" =>del_page(args),
-        "split" |"s" => split(args),
+        "split" |"s" => split(args,false),
         "app" => app(),
         "reorganize" |"swap"|"sw" |"reorg" |"ro" => reorganize(args),
         _ => print!("No command was recognized. type yapm help to get all the commands")
@@ -51,67 +53,187 @@ pub fn cli_handler(args:&mut Vec<String>){
 }
 
 
-pub fn split(args:&mut Vec<String>) {
+pub fn split(args:&mut Vec<String>,gui:bool) {
     //Doc req
-    let document;
-    let _pdf_name;
-    (document,_pdf_name) = load_doc(args);
-    let count = document.get_pages().len();
-    let mut pages_numbers:Vec<u32> = Vec::new();
-    let mut doc ;
-    let mut name;
-    let mut files: Vec<String> = vec![];
-    for i in 1..=count{
-        doc = document.clone();
-        for j in 1..=count{
-            if j != i {
-            pages_numbers.push(j as u32);
+    if !gui{
+            
+        let document;
+        let _pdf_name;
+        let mut files:Vec<String> = Vec::new();
+        (document,_pdf_name) = load_doc_pop(args);
+
+        let n_pages = document.n_pages();
+        for page_nb in 0..n_pages {
+                let path = format!("page_{}.pdf", page_nb + 1);
+                files.push(path.clone());
+                let surface = cairo::PdfSurface::new(595.0, 842.0, path)
+                    .expect("Erreur surface");
+
+                let cr = cairo::Context::new(&surface).unwrap();
+                let page = document.page(page_nb).expect("Erreur page");
+                page.render_for_printing(&cr);
+                cr.show_page().expect("Erreur show_page");
+                surface.finish();
+            }
+        
+
+        let mut name = "splitted_document.zip".to_string();
+        for i in 0..args.len(){
+            if args[i] == "-o"{
+                if i +1 > args.len() - 1{
+                    println!("Missing the argument after -o");
+                    exit(1);
+                }
+                name = args[i+1].clone();
+                if ! name.contains(".zip"){
+                    name = format!("{name}.zip");
+                }
             }
         }
-        doc.delete_pages(&pages_numbers);
-        name = format!("page_{i}.pdf");
-        files.push(name.clone());
-        doc.save(name).unwrap();
-        pages_numbers.clear();
-    }
+        let archive_path = name.as_str();
 
-    name = "splitted_document.zip".to_string();
-    for i in 0..args.len(){
-        if args[i] == "-o"{
-            if i +1 > args.len() - 1{
-                println!("Missing the argument after -o");
-                exit(1);
-            }
-            name = args[i+1].clone();
-            if ! name.contains(".zip"){
-                name = format!("{name}.zip");
-            }
-        }
-    }
-    let archive_path = name.as_str();
-
-    let archive = PathBuf::from_str(archive_path).unwrap();
-    let existing_zip = OpenOptions::new()
-        .create(true)
-        .read(true)
-        .write(true)
-        .open(archive)
-        .unwrap();
-
-    let mut append_zip = zip::ZipWriter::new(existing_zip);
-
-    for file in &files {
-        append_zip
-            .start_file(PathBuf::from(file).to_string_lossy(), SimpleFileOptions::default())
+        let archive = PathBuf::from_str(archive_path).unwrap();
+        let existing_zip = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(archive)
             .unwrap();
 
-        let mut f = File::open(file).unwrap();
-        let _ = std::io::copy(&mut f, &mut append_zip);
-    }
+        let mut append_zip = zip::ZipWriter::new(existing_zip);
+        let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-    append_zip.finish().unwrap();
-    
-    delete_files(files);
+        for file in &files {
+            append_zip
+                .start_file(PathBuf::from(file).to_string_lossy(), options)
+                .unwrap();
+
+            let mut f = File::open(file).unwrap();
+            let _ = std::io::copy(&mut f, &mut append_zip);
+        }
+
+        append_zip.finish().unwrap();
+        
+        delete_files(files);
+    } else {
+        //args is the list of path to pdf to split + the name of the archive if given
+        let mut files:Vec<String> = Vec::new();
+        
+        //Depending on if we have multiple files to split we create sub dir in our tmp
+        if args.len() == 2 { //only one file to split we do not create a sub dir 
+            let zip_name = args.remove(0);
+             //getting the pdf name
+            let pdf_name = { 
+                let tmp:Vec<&str> = args[0].split("/").collect();  
+                let pdf_name = tmp[tmp.len() -1 ];
+                pdf_name.replace(".pdf", "")
+            };
+            let doc = PopplerDocument::from_file(&format!("file://{}", args[0]), Some(""))
+                .expect("Impossible d'ouvrir le PDF");
+
+            let n_pages = doc.n_pages();
+            for page_nb in 0..n_pages {
+                let path = format!("/usr/share/yapm/tmp/{pdf_name}_page_{}.pdf", page_nb + 1);
+                files.push(path.clone());
+                let surface = cairo::PdfSurface::new(595.0, 842.0, path)
+                    .expect("Erreur surface");
+
+                let cr = cairo::Context::new(&surface).unwrap();
+                let page = doc.page(page_nb).expect("Erreur page");
+                page.render_for_printing(&cr);
+                cr.show_page().expect("Erreur show_page");
+                surface.finish();
+                }
+        
+                
+            let archive = PathBuf::from_str(&zip_name).unwrap();
+            let existing_zip = OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(archive)
+                .unwrap();
+
+            let mut append_zip = zip::ZipWriter::new(existing_zip);
+            let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+            for file in &files {
+                //extract the name only 
+                let file_name:String = {
+                    let tmp:Vec<&str> = file.split("/").collect();
+                    tmp[tmp.len() -1 ].to_string()
+                };
+                append_zip
+                    .start_file(PathBuf::from(file_name).to_string_lossy(), options)
+                    .unwrap();
+
+                let mut f = File::open(file).unwrap();
+                let _ = std::io::copy(&mut f, &mut append_zip);
+            }
+
+            append_zip.finish().unwrap();
+            
+            delete_files(files);
+        } else {// Multiple file to split -> create subdir before extraction + delete dir after zip is done
+            let zip_name = args.remove(0);
+            let archive = PathBuf::from_str(&zip_name).unwrap();
+            let existing_zip = OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(archive)
+                .unwrap();
+
+            let mut append_zip = zip::ZipWriter::new(existing_zip);
+            let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+            for i in  0..args.len(){
+                let mut files_dir:Vec<String> = Vec::new();
+                //getting the pdf name
+                let pdf_name = { 
+                    let tmp:Vec<&str> = args[i].split("/").collect();  
+                    let pdf_name = tmp[tmp.len() -1 ];
+                    pdf_name.replace(".pdf", "")
+                };
+                let doc = PopplerDocument::from_file(&format!("file://{}", args[i]), Some(""))
+                    .expect("Impossible d'ouvrir le PDF");
+
+                let n_pages = doc.n_pages();
+                for page_nb in 0..n_pages {
+                    let path = format!("/usr/share/yapm/tmp/{pdf_name}_page_{}.pdf", page_nb + 1);
+                    files.push(path.clone());
+                    files_dir.push(path.clone());
+                    let surface = cairo::PdfSurface::new(595.0, 842.0, path)
+                        .expect("Erreur surface");
+
+                    let cr = cairo::Context::new(&surface).unwrap();
+                    let page = doc.page(page_nb).expect("Erreur page");
+                    page.render_for_printing(&cr);
+                    cr.show_page().expect("Erreur show_page");
+                    surface.finish();
+                }
+                for file in &files_dir {
+                    //extract the name only 
+                    let file_name:String = {
+                        let tmp:Vec<&str> = file.split("/").collect();
+                        format!("{pdf_name}/{}",tmp[tmp.len() -1 ].to_string())
+                    };
+                    append_zip
+                        .start_file(PathBuf::from(file_name).to_string_lossy(), options)
+                        .unwrap();
+
+                    let mut f = File::open(file).unwrap();
+                    let _ = std::io::copy(&mut f, &mut append_zip);
+                }
+                files_dir.clear();
+            }
+
+
+            append_zip.finish().unwrap();
+            delete_files(files);
+            
+        }
+    }
 
 }
 
@@ -286,7 +408,7 @@ pub fn merge(documents:Vec<Document>,name: &str) {
 pub fn reorganize(args:&mut Vec<String>){
     let document;
     let pdf_name;
-    (document,pdf_name)  = load_doc(args);
+    (document,pdf_name)  = load_doc_lop(args);
     let count = document.get_pages().len();
     let mut documents: Vec<Document> = Vec::new();
     let mut files : Vec<String> = Vec::new();
@@ -326,6 +448,75 @@ pub fn reorganize(args:&mut Vec<String>){
     //Option -s 1 2 => swap page 1 and 2 / By default give the full possibility 
     //OR full swap ...
 }
+
+pub fn del_page(args:&mut Vec<String>){
+    let  doc;
+    let  pdf_name;
+    (doc,pdf_name )= load_doc_pop(args);
+    let mut pages_to_del:Vec<i32> = vec![];
+    for i in 0..args.len(){
+        pages_to_del.push(args[i].parse::<i32>().unwrap())
+    }
+
+    let total = doc.n_pages();
+    let mut files:Vec<String> = Vec::new();
+
+    for i in 0..total {
+        let page_number = i + 1;
+        if pages_to_del.contains(&page_number) {
+            continue;
+        }
+
+        let filename = format!("page_{}.pdf", page_number);
+        files.push(filename.clone());
+        let surface = cairo::PdfSurface::new(595.0, 842.0, &filename).unwrap();
+        let cr = cairo::Context::new(&surface).unwrap();
+        let page = doc.page(i ).unwrap();
+        page.render_for_printing(&cr);
+        cr.show_page().unwrap();
+        surface.finish();
+    }
+
+    let mut documents:Vec<Document> = Vec::new();
+    for file in &files{
+        documents.push(Document::load(file).unwrap())
+    }
+
+    let name = format!("modified_{}",pdf_name);
+    merge(documents, &name);
+    delete_files(files);
+}
+
+pub fn get_page(args:&mut Vec<String>){
+    let  document;
+    let  pdf_name;
+    (document,pdf_name)  = load_doc_pop(args);
+    let count = document.n_pages();
+    let page_to_get = args[0].parse::<i32>().unwrap();
+    if page_to_get > count {
+        println!("The {} page is out of range. The pdf file have {} page(s)",page_to_get,count);
+        exit(1);
+    }
+    
+
+    let filename =  format!("Page_{page_to_get}_{}",pdf_name);
+    let surface = cairo::PdfSurface::new(595.0, 842.0, &filename).unwrap();
+    let cr = cairo::Context::new(&surface).unwrap();
+    let page = document.page(page_to_get -1 ).unwrap();
+    page.render_for_printing(&cr);
+    cr.show_page().unwrap();
+    surface.finish();
+   
+}
+
+fn compress( args: &mut Vec<String>){
+    let mut doc ;
+    let _pdf_name;
+    (doc,_pdf_name)= load_doc_lop(args);
+    doc.compress();
+    doc.save("compressed.pdf").unwrap();
+}
+
 
 fn help(args:&mut Vec<String>){
     if args.len() == 1 {
@@ -391,52 +582,30 @@ fn split_help(full:bool){
     }
 }
 
-
-fn del_page(args:&mut Vec<String>){
-    println!("{:?}",args);
-    let mut doc;
-    let  pdf_name;
-    (doc,pdf_name )= load_doc(args);
-    let mut pages:Vec<u32> = vec![];
+fn load_doc_pop(args: &mut Vec<String>) ->( PopplerDocument,String){
+    //Removing the command from the arfs list 
+    args.remove(0);
+    let mut index = 0;
+    let mut name: String = String::new();
+    //Found the .pdf file in the list of the arguments
     for i in 0..args.len(){
-        pages.push(args[i].parse::<u32>().unwrap())
-    }
-    doc.delete_pages(&pages);
-    let name = format!("modified_{}",pdf_name);
-    doc.save(name).unwrap();
-}
-
-fn get_page(args:&mut Vec<String>){
-    let  document;
-    let  pdf_name;
-    (document,pdf_name)  = load_doc(args);
-    let count = document.get_pages().len();
-    let mut pages_numbers:Vec<u32> = Vec::new();
-    let mut doc = document;
-    let page = args[0].parse::<usize>().unwrap();
-    if page > count {
-        println!("The {} page is out of range. The pdf file have {} page(s)",page,count);
-        exit(1);
-    }
-    for j in 1..=count{
-        if j != page {
-            pages_numbers.push(j as u32);
+        if args[i].contains(".pdf"){
+            name = args[i].clone();
+            index = i;
         }
     }
-    doc.delete_pages(&pages_numbers);
-    let name = format!("Page_{page}_{}",pdf_name);
-    doc.save(name).unwrap();
+    let pdf_name = args.remove(index);
+    let binding = std::env::current_dir().unwrap();
+    let working_dir = binding.to_str().unwrap();
+    let document = PopplerDocument::from_file(&format!("file://{}/{}",working_dir, name), Some(""));
+        
+    match document{
+        Ok(doc) => (doc,pdf_name),
+        Err(err) => {println!("Error when trying to load the pdf {}\n{}",&name.blue(),err); exit(1)}
+    }
 }
 
-fn compress( args: &mut Vec<String>){
-    let mut doc ;
-    let _pdf_name;
-    (doc,_pdf_name)= load_doc(args);
-    doc.compress();
-    doc.save("compressed.pdf").unwrap();
-}
-
-fn load_doc(args: &mut Vec<String>) ->( Document,String){
+fn load_doc_lop(args: &mut Vec<String>) ->( Document,String){
     //Removing the command from the arfs list 
     args.remove(0);
     let mut index = 0;
@@ -452,8 +621,9 @@ fn load_doc(args: &mut Vec<String>) ->( Document,String){
     let document = Document::load(&name);
     match document{
         Ok(doc) => (doc,pdf_name),
-        Err(err) => {println!("Error when trying to load the pdf {}\n{}",name.blue(),err); exit(1)}
+        Err(err) => {println!("Error when trying to load the pdf {}\n{}",&name.blue(),err); exit(1)}
     }
+
 }
 
 fn delete_files(files: Vec<String>){

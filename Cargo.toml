@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Cairo avec support PDF
+cairo-rs = { version = "0.20.10", features = ["pdf"] }
 colored = "3.0.0"
 gtk4 = {version="0.9.6", package ="gtk4",  default-features = false, features = ["v4_6","v4_18"]}
 lopdf = "0.36.0"
