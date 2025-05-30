@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, process::exit, rc::Rc};
 
-use gtk4::{ cairo::{self, Context}, gdk::{self, Key}, gio:: File, glib::{object::Cast, Propagation},  prelude::{ BoxExt, ButtonExt, DrawingAreaExt, DrawingAreaExtManual, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, DrawingArea, DropTarget,  EventControllerKey, FileDialog, HeaderBar, Image, Label, ListBox, ListBoxRow,  TextView};
+use gtk4::{ cairo::{self, Context}, gdk::{self, prelude::{DeviceExt, DisplayExt, SeatExt}, Key, ModifierType}, gio:: File, glib::{object::Cast, Propagation}, prelude::{ AdjustmentExt, BoxExt, ButtonExt, DrawingAreaExt, DrawingAreaExtManual, EventControllerExt, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, DrawingArea, EventControllerKey, EventControllerScroll, HeaderBar, Image, Label, ListBox, ListBoxRow, ScrolledWindow, TextBuffer, TextView};
 use lopdf::Document;
 use poppler::Document as PopDocument;
 
@@ -456,18 +456,14 @@ fn pdf_display(filename: String,button:Button){
     bt.append(&page_indicator);
 
     let doc = PopDocument::from_file(filename.as_str(), Some("")).unwrap();
+    let doco = doc.clone();
     let num_pages = doc.n_pages();
 
-    drawing_area.set_content_height(doc.page(0).unwrap().size().1 as i32);
-    drawing_area.set_content_width(doc.page(0).unwrap().size().0 as i32);
-    let window = ApplicationWindow::builder()
-        .child(&app_wrapper)
-        .default_height(doc.page(0).unwrap().size().1 as i32)
-        .default_width(doc.page(0).unwrap().size().0 as i32)
-        .resizable(false)
-        .build();
-    window.set_titlebar(Some(&hb));
+    let (orig_width,orig_height) = doc.page(0).unwrap().size();
+    drawing_area.set_content_height(orig_height as i32);
+    drawing_area.set_content_width(orig_width as i32);
 
+    let scale = Rc::new(RefCell::new(1.0));
     let current_page = Rc::new(RefCell::new(1));
     let current_page_copy_another = current_page.clone();
     let current_page_view = current_page.clone();
@@ -488,11 +484,12 @@ fn pdf_display(filename: String,button:Button){
     let click = gtk4::GestureClick::new();
     click.set_button(0);
     let deo = da.clone();
+
     click.connect_pressed(move |_count, _, x, y| {
         let center = da.width() / 2;
         if y < (da.height() / 5) as f64 {
             toggle_fullscreen();
-        } else if x > center as f64 &&  *current_page.borrow_mut() < num_pages {
+        } else if x > center as f64 &&  *current_page.borrow_mut() < num_pages  {
             *current_page.borrow_mut() += 1;
         } else if x < center as f64 && *current_page.borrow_mut() > 1 {
             *current_page.borrow_mut()  -= 1;
@@ -504,7 +501,8 @@ fn pdf_display(filename: String,button:Button){
 
     deo.add_controller(click);
 
-    deo.set_draw_func(move |area, context, _a, _b| {
+    let scale_clone = scale.clone();
+    deo.set_draw_func(move |_area, context, _a, _b| {
             let current_page_number = &current_page_view.borrow_mut();
             context.set_source_rgba(1.0, 1.0, 1.0, 1.0);
             context.paint().unwrap();
@@ -512,15 +510,10 @@ fn pdf_display(filename: String,button:Button){
             context.paint().unwrap();
 
             let page = doc.page(**current_page_number - 1).unwrap();
-            let (w, h) = page.size();
-            let width_diff = area.width() as f64 / w;
-            let height_diff = area.height() as f64 / h;
+
+            let scale = *scale.borrow();
             context.save().unwrap();
-            if width_diff > height_diff {
-                context.scale(height_diff, height_diff);
-            } else {
-                context.scale(width_diff, width_diff);
-            }
+            context.scale(scale,scale);
             page.render(&context);
 
             let r = ctx.paint();
@@ -530,7 +523,72 @@ fn pdf_display(filename: String,button:Button){
             }
 
             ctx.show_page().unwrap();
+           
+
         });
+
+        // GestureScroll for zoom
+        let scrolled_window = ScrolledWindow::builder()
+            .child(&app_wrapper)
+            .hscrollbar_policy(gtk4::PolicyType::Automatic)
+            .vscrollbar_policy(gtk4::PolicyType::Automatic)
+            .build();
+        
+        let scroll_controller = EventControllerScroll::new(gtk4::EventControllerScrollFlags::VERTICAL);
+        let draw_area = deo.clone();
+        let h_adj = scrolled_window.hadjustment();
+        let v_adj = scrolled_window.vadjustment();
+        scroll_controller.connect_scroll(move |controller, _, delta| {
+            let control_pressed = controller
+                .widget()
+                .and_then(|w| Some(w.display()))
+                .and_then(|d| d.default_seat())
+                .and_then(|s| s.keyboard())
+                .map(|k| k.modifier_state().contains(ModifierType::CONTROL_MASK))
+                .unwrap_or(false);
+            let shift_pressed = controller
+                .widget()
+                .and_then(|w| Some(w.display()))
+                .and_then(|d| d.default_seat())
+                .and_then(|s| s.keyboard())
+                .map(|k| k.modifier_state().contains(ModifierType::SHIFT_MASK))
+                .unwrap_or(false);
+
+            println!("control {control_pressed} / shift {shift_pressed}");
+
+            // shift check to block scroll behavior 
+            if shift_pressed  {
+                    //PDF Zoom
+                    let mut scale = scale_clone.borrow_mut();
+                    *scale = *scale *{ if delta < 0.0 { 1.1} else { if *scale < 1.0 {1.0} else {0.9 }}};
+
+                    // Adapter la taille du DrawingArea
+                    let new_width = (orig_width * *scale) as i32;
+                    let new_height = (orig_height * *scale) as i32;
+                    deo.set_content_width(new_width);
+                    deo.set_content_height(new_height);
+                    deo.queue_draw();
+            } else if control_pressed { // horizontal scroll
+                let new_value = (h_adj.value() + delta * 30.0)
+                    .clamp(h_adj.lower(), h_adj.upper() - h_adj.page_size());
+                h_adj.set_value(new_value);
+            } else {
+                let new_value = (v_adj.value() + delta * 30.0)
+                    .clamp(v_adj.lower(), v_adj.upper() - v_adj.page_size());
+                v_adj.set_value(new_value);
+            }
+                Propagation::Stop // removing the normal behavior
+        });
+        draw_area.add_controller(scroll_controller);
+
+
+        let window = ApplicationWindow::builder()
+            .child(&scrolled_window)
+            .default_height(doco.page(0).unwrap().size().1 as i32)
+            .default_width(doco.page(0).unwrap().size().0 as i32)
+            .resizable(false)
+            .build();
+        window.set_titlebar(Some(&hb));
 
         window.connect_close_request(move |_w|{
             button.set_sensitive(true);
@@ -538,6 +596,9 @@ fn pdf_display(filename: String,button:Button){
             Propagation::Proceed
         });
 
+        
+
+        
         window.present()
 }
 
@@ -570,7 +631,10 @@ pub fn row_file(path : PathBuf,name:&str) -> ListBoxRow{
 
 
 #[allow(unused_assignments)]
-pub fn folder_window(do_button :Button,file_box:ListBox,number:i32){
+pub fn folder_window(do_button :Button,number:i32) -> (Button,
+                                                                        TextBuffer,
+                                                                        i32,
+                                                                        ApplicationWindow){
     let margin = 10;
     let bar = HeaderBar::builder()
         .build();
@@ -737,79 +801,9 @@ pub fn folder_window(do_button :Button,file_box:ListBox,number:i32){
         pcb.remove(fc);
    
     });
-    //accept connection
-    acb.connect_clicked(move |b|{
-        b.set_sensitive(false);
-        let path = path_content_buffer.text(&path_content_buffer.start_iter(), &path_content_buffer.end_iter(), true);
-        //dichotomy if path is a dir or not
-        let mut splitted_path:Vec<&str>= path.split("/").collect();
-        let name: String;
-        let mut flag:bool = false;
-        let file_name = splitted_path.remove(splitted_path.len() -1);
-        let path_dir:PathBuf ={
-            let tmp = splitted_path.join("/");
-            if tmp.is_empty() {
-                PathBuf::from("/")
-            } else{
-                if tmp.contains("\n"){
-                    return;
-                }
-                tmp.into()
-            }
-        };
-
-        let path_buf:PathBuf = path.clone().into();
-        if !(path_dir.exists() || path_buf.exists()) || !path.starts_with("/") || file_name.is_empty(){ // the case where the user enter but the path is not valid
-           return ;
-        } else if path_buf.is_dir(){
-            //println!("we are on default mode");
-            name = String::from("merged.pdf");
-            flag = true;
-        }else {//the normal case
-            //println!("no : {:?}",file_name);
-            if file_name.ends_with(".pdf"){
-                 name = file_name.to_owned();
-            } else {
-                name = format!("{file_name}.pdf");
-            }
-        }
-
-        let path: String = {
-            let pds = path_dir.to_str().unwrap();
-            let pbs = path_buf.to_str().unwrap();
-            if flag{
-                format!("{}/{name}",pbs)
-            } else {
-                if pds == "/"{
-                    format!("{}{name}",pds)
-                }else {
-                    format!("{}/{name}",pds)
-                }
-                
-            }
-
-        };
-
-        let mut pdf_list:Vec<Document> = Vec::new();
-        for i in 0..number{
-            //access the invisible label the absolute path
-            let abs_path = file_box.row_at_index(i)
-                .unwrap()
-                .first_child()
-                .unwrap()
-                .first_child()
-                .unwrap()
-                .downcast::<Label>()
-                .unwrap().label();
-            let doc = lopdf::Document::load(abs_path).unwrap();
-            pdf_list.push(doc);
-            
-        }
-        
-        let _ = cli::merge(pdf_list, &path);
-        b.set_sensitive(true);
-        win.close();
-    });
+    
+    //return the necessary objects to connect the action 
+    (acb,path_content_buffer,number,win)
     
 }
 

@@ -1,9 +1,9 @@
-use std::process::exit;
+use std::{path::PathBuf, process::exit};
 
-use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ BoxExt, ButtonExt, WidgetExt}, ApplicationWindow, Label, ListBox, ListBoxRow};
+use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 use lopdf::Document;
 
-use super::widget_builder::{ folder_window, row_file, widget_builder};
+use super::{cli, widget_builder::{ folder_window, row_file, widget_builder}};
 
 
 //Move widget on the main box
@@ -16,11 +16,8 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
                 true,
                     true);
     
-    let dbt = do_button.clone();
     let fbl = file_box.clone();
-    do_button.connect_clicked(move |_e|{
-        let b =dbt.clone();
-        let fb = file_box.clone();
+    do_button.connect_clicked(move |b|{
         let mut number = 0;
         //let file = FileDialog::builder().title("Choose your saving location").build();
 
@@ -33,7 +30,8 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
 
         if number != 0{
             //should use file.save but it ain't working
-            folder_window(b,fb,number);
+            let (accept_button_fwin,path_content_buffer,number,fwin) = folder_window(b.clone(),number);
+            accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin);
         }
     
         
@@ -41,7 +39,6 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
     });
     
     let win = window.clone();
-    let f_box = fbl.clone();
     add_button.connect_clicked( move |_e|{
         let file = gtk4::FileDialog::builder().title("Choose your pdf files").build();
         let f_box = fbl.clone();
@@ -55,7 +52,7 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
 }
 
 
-//Callbacks 
+//Overrides
 fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListBox){
     if !arg.is_err(){
         let listmodel = &arg.unwrap();
@@ -72,6 +69,82 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
             file_box.append(&row);
         }
     }
+}
+
+fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow){
+    button.connect_clicked(move |b|{
+        b.set_sensitive(false);
+        let path = path_content_buffer.text(&path_content_buffer.start_iter(), &path_content_buffer.end_iter(), true);
+        //dichotomy if path is a dir or not
+        let mut splitted_path:Vec<&str>= path.split("/").collect();
+        let name: String;
+        let mut flag:bool = false;
+        let file_name = splitted_path.remove(splitted_path.len() -1);
+        let path_dir:PathBuf ={
+            let tmp = splitted_path.join("/");
+            if tmp.is_empty() {
+                PathBuf::from("/")
+            } else{
+                if tmp.contains("\n"){
+                    return;
+                }
+                tmp.into()
+            }
+        };
+
+        let path_buf:PathBuf = path.clone().into();
+        if !(path_dir.exists() || path_buf.exists()) || !path.starts_with("/") || file_name.is_empty(){ // the case where the user enter but the path is not valid
+           return ;
+        } else if path_buf.is_dir(){
+            //println!("we are on default mode");
+            name = String::from("merged.pdf");
+            flag = true;
+        }else {//the normal case
+            //println!("no : {:?}",file_name);
+            if file_name.ends_with(".pdf"){
+                 name = file_name.to_owned();
+            } else {
+                name = format!("{file_name}.pdf");
+            }
+        }
+
+        let path: String = {
+            let pds = path_dir.to_str().unwrap();
+            let pbs = path_buf.to_str().unwrap();
+            if flag{
+                format!("{}/{name}",pbs)
+            } else {
+                if pds == "/"{
+                    format!("{}{name}",pds)
+                }else {
+                    format!("{}/{name}",pds)
+                }
+                
+            }
+
+        };
+
+        let mut pdf_list:Vec<Document> = Vec::new();
+        for i in 0..number{
+            //access the invisible label the absolute path
+            let abs_path = file_box.row_at_index(i)
+                .unwrap()
+                .first_child()
+                .unwrap()
+                .first_child()
+                .unwrap()
+                .downcast::<Label>()
+                .unwrap().label();
+            let doc = lopdf::Document::load(abs_path).unwrap();
+            pdf_list.push(doc);
+            
+        }
+        
+        //here
+        cli::merge(pdf_list, &path);
+        b.set_sensitive(true);
+        win.close();
+    });
 }
 
 //TEST DROP ZONE 

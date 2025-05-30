@@ -115,7 +115,7 @@ pub fn split(args:&mut Vec<String>) {
 
 }
 
-pub fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
+pub fn merge(documents:Vec<Document>,name: &str) {
     // Define a starting `max_id` (will be used as start index for object_ids).
     let mut max_id = 1;
     let mut pagenum = 1;
@@ -205,8 +205,6 @@ pub fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
     // If no "Pages" object found, abort.
     if pages_object.is_none() {
         println!("Pages root not found.");
-
-        return Ok(());
     }
 
     // Iterate over all "Page" objects and collect into the parent "Pages" created before
@@ -224,8 +222,6 @@ pub fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
     // If no "Catalog" found, abort.
     if catalog_object.is_none() {
         println!("Catalog root not found.");
-
-        return Ok(());
     }
 
     let catalog_object = catalog_object.unwrap();
@@ -285,8 +281,6 @@ pub fn merge(documents:Vec<Document>,name: &str)-> std::io::Result<()> {
 
     document.save(name).unwrap();
 
-
-    Ok(())
 }
 
 pub fn reorganize(args:&mut Vec<String>){

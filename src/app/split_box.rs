@@ -1,6 +1,6 @@
-use gtk4::{gio::{prelude::FileExt, File}, glib::object::Cast, prelude::ButtonExt, ListBox};
+use gtk4::{gio::{prelude::FileExt, File}, glib::object::Cast, prelude::ButtonExt, ListBox, ListBoxRow};
 
-use super::widget_builder::{widget_builder,row_file};
+use super::widget_builder::{folder_window, row_file, widget_builder};
 
 
 pub fn split_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
@@ -14,10 +14,31 @@ pub fn split_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
 
     let win = window.clone();
 
+    let f_box = file_box.clone();
     add_button.connect_clicked( move |_e|{
         let file = gtk4::FileDialog::builder().title("Choose your pdf files").build();
-        let f_box = file_box.clone();
+        let f_box = f_box.clone();
         file.open_multiple(Some(&win), gtk4::gio::Cancellable::NONE,   |arg0: Result<gtk4::gio::ListModel, gtk4::glib::Error>| on_select(arg0,f_box));
+    });
+
+    do_button.connect_clicked(move |b|{
+        let mut number = 0;
+        //let file = FileDialog::builder().title("Choose your saving location").build();
+
+        let mut row: Option<ListBoxRow> = file_box.row_at_index(number);
+        while row.is_some() {
+            number +=1;
+            row = file_box.row_at_index(number );
+        } 
+        
+
+        if number != 0{
+            //should use file.save but it ain't working
+            folder_window(b.clone(),number);
+        }
+    
+        
+        
     });
 
 
