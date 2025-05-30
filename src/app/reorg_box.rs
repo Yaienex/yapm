@@ -9,6 +9,7 @@ pub fn reorg_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
         do_button,) = widget_builder("Reorganize".to_string(),
                 "/usr/share/yapm/ressources/reorganize_icon.png".to_string(),
                 true,
+                false,
                 false);
 
     let win = window.clone();
@@ -38,7 +39,7 @@ fn on_select(arg:Result<File,gtk4::glib::Error>,file_box:ListBox){
         //Ignoring all the format except .pdf
         if ! name.contains(".pdf") { return;}
         //Appending the list
-        let row = row_file(path,name);
+        let row = row_file(path,name,false);
         file_box.append(&row);
         }
 }

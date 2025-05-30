@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::exit};
 
-use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, types::StaticType, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
+use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 use lopdf::Document;
 
 use super::{cli, result_window::{done_window, warning_window}, widget_builder::{ folder_window, row_file, widget_builder}};
@@ -14,7 +14,8 @@ pub fn merge_box(main_window:&ApplicationWindow) -> gtk4::Box{
         do_button,) = widget_builder("Merge".to_string(),
                 "/usr/share/yapm/ressources/merge_icon.png".to_string(),
                 true,
-                    true);
+                true,
+                false);
     
     let fbl = file_box.clone();
     let win = main_window.clone();
@@ -67,7 +68,7 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
             if ! name.contains(".pdf") { continue;}
 
             //Appending the list
-            let row = row_file(path,name);
+            let row = row_file(path,name,false);
             file_box.append(&row);
             file_box.select_row(Some(&row));
         }

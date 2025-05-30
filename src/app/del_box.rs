@@ -1,5 +1,6 @@
 use super::widget_builder::{row_file, widget_builder};
 use gtk4::{gio::File, prelude::{ButtonExt,FileExt}, ListBox};
+use poppler::Document;
 
 pub fn del_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
     let (main_box,
@@ -8,13 +9,14 @@ pub fn del_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
         do_button) = widget_builder("Delete page(s)".to_string(),
                 "/usr/share/yapm/ressources/del_icon.png".to_string(),
                 false,
-                false);
+                false,
+                true);
 
     let win = window.clone();
 
     //Connect buttons to right actions 
     add_button.connect_clicked( move |_e|{
-        let file = gtk4::FileDialog::builder().title("Choose your pdf files").build();
+        let file = gtk4::FileDialog::builder().title("Choose your pdf file").build();
         let f_box = file_box.clone();
         file.open(Some(&win), gtk4::gio::Cancellable::NONE,   |arg0: Result<File, gtk4::glib::Error>| on_select(arg0,f_box));
     });
@@ -32,13 +34,17 @@ fn on_select(arg:Result<File,gtk4::glib::Error>,file_box:ListBox){
         file_box.remove_all();
         let file = &arg.unwrap();
         let path = file.path().unwrap();
-        let p = path.clone();
-        let splitted_path:Vec<&str>= p.to_str().unwrap().split("/").collect();
-        let name = splitted_path[splitted_path.len() -1 ];
         //Ignoring all the format except .pdf
-        if ! name.contains(".pdf") { return;}
+        if ! &path.to_str().unwrap().ends_with(".pdf") { return;}
+
+        //reprensenting every page by a row 
         //Appending the list
-        let row = row_file(path,name);
-        file_box.append(&row);
+        let document = Document::from_file(&format!("file://{}",path.to_str().unwrap()), Some("")).unwrap();
+        let n = document.n_pages();
+        for i in 1..=n{
+            let row = row_file(path.clone(),&format!("Page_{i}"),true);
+            file_box.append(&row);
+        }
+        
         }
 }

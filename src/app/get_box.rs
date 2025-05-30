@@ -8,7 +8,8 @@ pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
         do_button) = widget_builder("Get page(s)".to_string(),
                 "/usr/share/yapm/ressources/get_icon.png".to_string(),
                 false,
-                false);
+                false,
+                true);
 
     let win = window.clone();
 
@@ -38,7 +39,7 @@ fn on_select(arg:Result<File,gtk4::glib::Error>,file_box:ListBox){
         //Ignoring all the format except .pdf
         if ! name.contains(".pdf") { return;}
         //Appending the list
-        let row = row_file(path,name);
+        let row = row_file(path,name,true);
         file_box.append(&row);
         }
 }

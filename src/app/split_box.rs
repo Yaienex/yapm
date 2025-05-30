@@ -13,7 +13,8 @@ pub fn split_box(main_window:&ApplicationWindow) -> gtk4::Box{
         do_button,) = widget_builder("Split".to_string(),
                 "/usr/share/yapm/ressources/split_icon.png".to_string(),
                 false,
-                true);
+                true,
+                false);
 
     let win = main_window.clone();
     let window = main_window.clone();
@@ -67,7 +68,7 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
             if ! name.contains(".pdf") { continue;}
 
             //Appending the list
-            let row = row_file(path,name);
+            let row = row_file(path,name,false);
             file_box.append(&row);
             file_box.select_row(Some(&row));
         }

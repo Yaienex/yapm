@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, process::exit, rc::Rc};
 
-use gtk4::{ cairo::{self, Context}, gdk::{self, prelude::{DeviceExt, DisplayExt, SeatExt}, Key, ModifierType}, gio:: File, glib::{object::Cast, Propagation}, prelude::{ AdjustmentExt, BoxExt, ButtonExt, DrawingAreaExt, DrawingAreaExtManual, EventControllerExt, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, DrawingArea, EventControllerKey, EventControllerScroll, HeaderBar, Image, Label, ListBox, ListBoxRow, ScrolledWindow, TextBuffer, TextView};
+use gtk4::{ cairo::{self, Context}, gdk::{prelude::{DeviceExt, DisplayExt, SeatExt}, Key, ModifierType}, gio::{prelude::ListModelExtManual, File}, glib::{object::{Cast, CastNone}, GString, Propagation}, prelude::{ AdjustmentExt, BoxExt, ButtonExt, CheckButtonExt, DrawingAreaExt, DrawingAreaExtManual, EventControllerExt, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, CheckButton, DrawingArea, EventControllerKey, EventControllerScroll, HeaderBar, Image, Label, ListBox, ListBoxRow, ScrolledWindow, TextBuffer, TextView, Widget};
 use lopdf::Document;
 use poppler::Document as PopDocument;
 
@@ -8,7 +8,8 @@ use poppler::Document as PopDocument;
 pub fn widget_builder(action_name:String,
                         icon_path:String,
                         move_flag:bool,
-                        pdf_view_flag:bool
+                        pdf_view_flag:bool,
+                        select_flag:bool
  ) -> (gtk4::Box,
         ListBox,
         Button,
@@ -48,8 +49,8 @@ pub fn widget_builder(action_name:String,
         .build();
        
     //Manage pdf file from the UI
-    let file_box = file_box(name_content,page_number_content,full_path_content,draw_area);
-    drop_box.append(&file_box);
+    let (file_box,scroll_win) = file_box(name_content,page_number_content,full_path_content,draw_area,select_flag);
+    drop_box.append(&scroll_win);
 
     //Action bar 
     let action_bar = gtk4::Box::builder()
@@ -318,7 +319,7 @@ fn info_box_subbox_builder(label: &str,vertical:bool) -> (gtk4::Box,Label){
     let content = Label::builder()
         .label("")
         .wrap(true)
-        .wrap_mode(gdk::pango::WrapMode::Word)
+        .wrap_mode(gtk4::gdk::pango::WrapMode::Word)
         .halign(gtk4::Align::Start)
         .build();
 
@@ -328,7 +329,8 @@ fn info_box_subbox_builder(label: &str,vertical:bool) -> (gtk4::Box,Label){
     (sub_box,content)
 }
 
-fn file_box(name_content: Label,page_number_content:Label,full_path_content:Label,draw_area:DrawingArea) -> ListBox{
+fn file_box(name_content: Label,page_number_content:Label,full_path_content:Label,draw_area:DrawingArea,select_flag:bool) -> (ListBox,ScrolledWindow){
+    
     let file_box = gtk4::ListBox::builder()
         .name("file-box")
         .halign(gtk4::Align::Fill)
@@ -336,7 +338,15 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
         .valign(gtk4::Align::Fill)
         .vexpand(true)
         .build();
-
+    let scroll_win = ScrolledWindow::builder()
+        .child(&file_box)
+        .hscrollbar_policy(gtk4::PolicyType::Automatic)
+        .vscrollbar_policy(gtk4::PolicyType::Automatic)
+        .halign(gtk4::Align::Fill)
+        .hexpand(true)
+        .valign(gtk4::Align::Fill)
+        .vexpand(true)
+        .build();
     let nc = name_content.clone();
     let pnc = page_number_content.clone();
     let fpc = full_path_content.clone();
@@ -345,6 +355,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
     file_box.connect_row_selected(move |file_box,row|{
         draw_area.set_visible(true);
         if row.is_some(){
+            
             let abs_path = row.unwrap()
                 .child() //row child
                 .unwrap()//Box
@@ -361,6 +372,22 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
                 Ok(doc) => doc,
                 Err(er) => {println!("{:?}",er);exit(1);}
             };
+            if select_flag{
+                let check_box = row
+                    .unwrap()
+                    .last_child()
+                    .unwrap()
+                    .downcast::<gtk4::Box>()
+                    .unwrap().last_child()
+                    .and_downcast::<CheckButton>()
+                    .unwrap();
+                if check_box.is_active() {
+                    check_box.set_active(false);
+                }
+                else {
+                    check_box.set_active(true);
+                }
+            }
                 
             //Updating the info frame
             name_content.set_label(name);
@@ -370,9 +397,37 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
             //Drawing 
             let surface = cairo::ImageSurface::create(cairo::Format::Rgb24, 0, 0).unwrap();
             let ctx = Context::new(&surface).unwrap();
-          
+            let row = row.unwrap().clone();
             draw_area.set_draw_func(move |area, context, _a, _b| {
-                let page = doc.page(0).unwrap();
+                let row = row.clone();
+                                let page ;
+                if select_flag{
+                    let binding = row
+                        .first_child()
+                        .unwrap()
+                        .downcast::<gtk4::Box>()
+                        .unwrap()
+                        .observe_children();
+                    let mut page_number_str=GString::new();
+                    for child in &binding{
+                        let widget = child.unwrap().downcast::<Widget>().unwrap();
+                        let label = &widget.widget_name();
+                        if label == "page"{
+                            page_number_str = widget.downcast::<Label>().unwrap().label();
+                        }
+
+                    }
+
+                    let number = page_number_str.split("_")
+                        .collect::<Vec<&str>>()[1]
+                        .parse::<i32>()
+                        .unwrap();
+                       
+                
+                    page = doc.page(number - 1).unwrap();
+                } else {
+                    page = doc.page(0).unwrap();
+                }  
                 let (w, h) = page.size();
                 let (width,height) = (area.width(),area.height());
 
@@ -421,7 +476,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
         });
 
     });
-    file_box
+    (file_box,scroll_win)
 }
 
 
@@ -615,29 +670,66 @@ fn pdf_display(filename: String,button:Button){
 
 
 // Public functions accessible from the other widget 
-pub fn row_file(path : PathBuf,name:&str) -> ListBoxRow{
-    //inital row
-    let margin = 5;
-    let row = ListBoxRow::builder()
-                .name("row")
-                .margin_bottom(margin)
-                .margin_top(margin)
-                .margin_start(margin)
-                .margin_end(margin)
-                .build();
-    let path = path.to_str().unwrap();
+pub fn row_file(path : PathBuf,name:&str,select_flag:bool) -> ListBoxRow{
+    
+    if select_flag{let margin = 5;
+        let row = ListBoxRow::builder()
+                    .name("row")
+                    .margin_bottom(margin)
+                    .margin_top(margin)
+                    .margin_start(margin)
+                    .margin_end(margin)
+                    .build();
+        let path = path.to_str().unwrap();
 
-    let path_label = Label::builder()
-        .label(path)
-        .visible(false)
-        .build();
-    let name_label = Label::new(Some(name));
-    let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
-    row_child.append(&path_label);
-    row_child.append(&name_label);
-    row.set_child(Some(&row_child));
+        let path_label = Label::builder()
+            .label(path)
+            .visible(false)
+            .build();
 
-    return  row;
+        let check_box = CheckButton::builder()
+            .hexpand(true)
+            .margin_end(10)
+            .halign(gtk4::Align::End)
+            .build();
+
+        let name_label = Label::builder()
+            .label(name)
+            .name("page")
+            .build();
+        let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+        row_child.append(&path_label);
+        row_child.append(&name_label);
+        row_child.append(&check_box);
+
+        row.set_child(Some(&row_child));
+
+        return  row;
+
+    } else {
+
+        let margin = 5;
+        let row = ListBoxRow::builder()
+                    .name("row")
+                    .margin_bottom(margin)
+                    .margin_top(margin)
+                    .margin_start(margin)
+                    .margin_end(margin)
+                    .build();
+        let path = path.to_str().unwrap();
+
+        let path_label = Label::builder()
+            .label(path)
+            .visible(false)
+            .build();
+        let name_label = Label::new(Some(name));
+        let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+        row_child.append(&path_label);
+        row_child.append(&name_label);
+        row.set_child(Some(&row_child));
+
+        return  row;
+    }
 }
 
 
@@ -732,7 +824,7 @@ pub fn folder_window(do_button :Button,extension:&str) -> (Button,
     
     window.connect_close_request(move |_p|{
         do_button.set_sensitive(true);
-        gdk::glib::Propagation::Proceed
+        Propagation::Proceed
     });
     let win = window.clone();
     cancel_button.connect_clicked(move |_e|{
@@ -802,7 +894,7 @@ pub fn folder_window(do_button :Button,extension:&str) -> (Button,
         let path_check = Label::builder()
             .label(message)
             .use_markup(true)
-            .wrap_mode(gdk::pango::WrapMode::Word)
+            .wrap_mode(gtk4::gdk::pango::WrapMode::Word)
             .margin_start(margin)
             .margin_end(margin)
             .vexpand(true)
@@ -842,7 +934,7 @@ pub fn count(file_box: ListBox,row_to_find:ListBoxRow) -> (i32,i32){
 //Callbacks 
 //to override
 
-fn _on_save(arg : Result<File, gdk::glib::Error>,_pdf_list :Vec<Document>){
+fn _on_save(arg : Result<File, gtk4::gdk::glib::Error>,_pdf_list :Vec<Document>){
     if !arg.is_err(){
         let file = arg.unwrap();
         //let tmp = file.path().unwrap();
