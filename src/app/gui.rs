@@ -214,20 +214,11 @@ fn get_widget(name: &String,window: &ApplicationWindow) -> gtk4::Box{
         "Reorganize" => reorg_box(window), 
         "Get page" => get_box(window) ,
         "Delete pages" => del_box(window),
-        _ => warning_box(),
+        _ => gtk4::Box::NONE.unwrap().clone(),
     }
-
 }
 
-fn warning_box() -> gtk4::Box{
-    let boxe = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Vertical)
-        .build();
-
-    boxe
-}
-
-fn style(night_mode : bool){
+pub fn style(night_mode : bool){
     let provider = gtk4::CssProvider::new();
     if night_mode{
         let file = gtk4::gio::File::for_path("/usr/share/yapm/ressources/night_style.css");

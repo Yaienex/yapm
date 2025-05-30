@@ -42,18 +42,18 @@ pub fn cli_handler(args:&mut Vec<String>){
             let _ = merge(documents,name);
         },
         "help" |"h" |"?" => help(args),
-        "compress" =>compress(args),
-        "get" | "g" => get_page(args),
-        "delete" |"del" |"d" =>del_page(args),
-        "split" |"s" => split(args,false),
+        "compress" =>{let _ = compress(args);},
+        "get" | "g" => {let _ = get_page(args);},
+        "delete" |"del" |"d" =>{let _ = del_page(args);},
+        "split" |"s" => {let _ = split(args,false);},
         "app" => app(),
-        "reorganize" |"swap"|"sw" |"reorg" |"ro" => reorganize(args),
+        "reorganize" |"swap"|"sw" |"reorg" |"ro" => {let _ = reorganize(args);},
         _ => print!("No command was recognized. type yapm help to get all the commands")
     }
 }
 
 
-pub fn split(args:&mut Vec<String>,gui:bool) {
+pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
     //Doc req
     if !gui{
             
@@ -112,9 +112,13 @@ pub fn split(args:&mut Vec<String>,gui:bool) {
             let _ = std::io::copy(&mut f, &mut append_zip);
         }
 
-        append_zip.finish().unwrap();
-        
         delete_files(files);
+
+        match append_zip.finish() {
+                Ok(_)=> return Ok(()),
+                Err(_) => return Err(()),
+        }
+            
     } else {
         //args is the list of path to pdf to split + the name of the archive if given
         let mut files:Vec<String> = Vec::new();
@@ -147,12 +151,15 @@ pub fn split(args:&mut Vec<String>,gui:bool) {
         
                 
             let archive = PathBuf::from_str(&zip_name).unwrap();
-            let existing_zip = OpenOptions::new()
+            let existing_zip = match OpenOptions::new()
                 .create(true)
                 .read(true)
                 .write(true)
                 .open(archive)
-                .unwrap();
+                {
+                    Ok(zip) => zip,
+                    Err(_) => return Err(()),
+                };
 
             let mut append_zip = zip::ZipWriter::new(existing_zip);
             let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -171,18 +178,25 @@ pub fn split(args:&mut Vec<String>,gui:bool) {
                 let _ = std::io::copy(&mut f, &mut append_zip);
             }
 
-            append_zip.finish().unwrap();
-            
             delete_files(files);
+
+            match append_zip.finish() {
+                Ok(_)=> return Ok(()),
+                Err(_) => return Err(()),
+            }
+            
         } else {// Multiple file to split -> create subdir before extraction + delete dir after zip is done
             let zip_name = args.remove(0);
             let archive = PathBuf::from_str(&zip_name).unwrap();
-            let existing_zip = OpenOptions::new()
+            let existing_zip = match OpenOptions::new()
                 .create(true)
                 .read(true)
                 .write(true)
-                .open(archive)
-                .unwrap();
+                .open(archive){
+                    Ok(zip) => zip,
+                    Err(_) => return Err(()),
+                };
+                
 
             let mut append_zip = zip::ZipWriter::new(existing_zip);
             let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -228,16 +242,19 @@ pub fn split(args:&mut Vec<String>,gui:bool) {
                 files_dir.clear();
             }
 
-
-            append_zip.finish().unwrap();
             delete_files(files);
+
+            match append_zip.finish() {
+                Ok(_)=> return Ok(()),
+                Err(_) => return Err(()),
+            }
             
         }
     }
 
 }
 
-pub fn merge(documents:Vec<Document>,name: &str) {
+pub fn merge(documents:Vec<Document>,name: &str) -> Result<(),()> {
     // Define a starting `max_id` (will be used as start index for object_ids).
     let mut max_id = 1;
     let mut pagenum = 1;
@@ -401,11 +418,15 @@ pub fn merge(documents:Vec<Document>,name: &str) {
 
     document.compress();
 
-    document.save(name).unwrap();
+    match document.save(name){
+        Ok(_) => Ok(()),
+        Err(_)=> Err(()),
+    }
+    
 
 }
 
-pub fn reorganize(args:&mut Vec<String>){
+pub fn reorganize(args:&mut Vec<String>)-> Result<(),()>{
     let document;
     let pdf_name;
     (document,pdf_name)  = load_doc_lop(args);
@@ -447,9 +468,11 @@ pub fn reorganize(args:&mut Vec<String>){
     }
     //Option -s 1 2 => swap page 1 and 2 / By default give the full possibility 
     //OR full swap ...
+
+    Ok(())
 }
 
-pub fn del_page(args:&mut Vec<String>){
+pub fn del_page(args:&mut Vec<String>)-> Result<(),()>{
     let  doc;
     let  pdf_name;
     (doc,pdf_name )= load_doc_pop(args);
@@ -473,7 +496,11 @@ pub fn del_page(args:&mut Vec<String>){
         let cr = cairo::Context::new(&surface).unwrap();
         let page = doc.page(i ).unwrap();
         page.render_for_printing(&cr);
-        cr.show_page().unwrap();
+
+        match cr.show_page() {
+            Ok(_) => (),
+            Err(_) => return Err(()),
+        };
         surface.finish();
     }
 
@@ -483,11 +510,15 @@ pub fn del_page(args:&mut Vec<String>){
     }
 
     let name = format!("modified_{}",pdf_name);
-    merge(documents, &name);
     delete_files(files);
+    match merge(documents, &name){
+        Ok(_) => Ok(()),
+        Err(_)=> Err(()),
+    }
+
 }
 
-pub fn get_page(args:&mut Vec<String>){
+pub fn get_page(args:&mut Vec<String>)-> Result<(),()>{
     let  document;
     let  pdf_name;
     (document,pdf_name)  = load_doc_pop(args);
@@ -500,21 +531,39 @@ pub fn get_page(args:&mut Vec<String>){
     
 
     let filename =  format!("Page_{page_to_get}_{}",pdf_name);
-    let surface = cairo::PdfSurface::new(595.0, 842.0, &filename).unwrap();
-    let cr = cairo::Context::new(&surface).unwrap();
-    let page = document.page(page_to_get -1 ).unwrap();
+    let surface = match cairo::PdfSurface::new(595.0, 842.0, &filename){
+        Ok(surface) => surface,
+        Err(_) => return Err(()),
+    };
+    let cr = match cairo::Context::new(&surface){
+        Ok(cr) => cr,
+        Err(_) => return Err(()),
+    };
+    let page  = match  document.page(page_to_get -1 ){
+        Some(e) => e,
+        None => return  Err(()),
+    };
     page.render_for_printing(&cr);
-    cr.show_page().unwrap();
+
+    match cr.show_page(){
+        Ok(_) => (),
+        Err(_) => return Err(()),
+    };
     surface.finish();
    
+   Ok(())
 }
 
-fn compress( args: &mut Vec<String>){
+fn compress( args: &mut Vec<String>) -> Result<(),()>{
     let mut doc ;
     let _pdf_name;
     (doc,_pdf_name)= load_doc_lop(args);
     doc.compress();
-    doc.save("compressed.pdf").unwrap();
+    match  doc.save("compressed.pdf") {
+        Ok(_) => Ok(()),
+        Err(_) => Err(())
+    }
+
 }
 
 

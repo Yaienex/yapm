@@ -1,13 +1,13 @@
 use std::{path::PathBuf, process::exit};
 
-use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
+use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, types::StaticType, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 use lopdf::Document;
 
-use super::{cli, widget_builder::{ folder_window, row_file, widget_builder}};
+use super::{cli, result_window::{done_window, warning_window}, widget_builder::{ folder_window, row_file, widget_builder}};
 
 
 //Move widget on the main box
-pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
+pub fn merge_box(main_window:&ApplicationWindow) -> gtk4::Box{
      let (main_box,
         file_box,
         add_button,
@@ -17,7 +17,10 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
                     true);
     
     let fbl = file_box.clone();
+    let win = main_window.clone();
+    let window = main_window.clone();
     do_button.connect_clicked(move |b|{
+        let window = win.clone();
         let mut number = 0;
         //let file = FileDialog::builder().title("Choose your saving location").build();
 
@@ -31,18 +34,17 @@ pub fn merge_box(window:&ApplicationWindow) -> gtk4::Box{
         if number != 0{
             //should use file.save but it ain't working
             let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf");
-            accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin);
+            accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin,window);
+        
         }
     
         
         
     });
-    
-    let win = window.clone();
     add_button.connect_clicked( move |_e|{
         let file = gtk4::FileDialog::builder().title("Choose your pdf files").build();
         let f_box = fbl.clone();
-        file.open_multiple(Some(&win), gtk4::gio::Cancellable::NONE,   |arg0: Result<gtk4::gio::ListModel, gtk4::glib::Error>| on_select(arg0,f_box));
+        file.open_multiple(Some(&window), gtk4::gio::Cancellable::NONE,   |arg0: Result<gtk4::gio::ListModel, gtk4::glib::Error>| on_select(arg0,f_box));
     });
     
    
@@ -72,7 +74,7 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
     }
 }
 
-fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow){
+fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow,main_win:ApplicationWindow){
     button.connect_clicked(move |b|{
         b.set_sensitive(false);
         let path = path_content_buffer.text(&path_content_buffer.start_iter(), &path_content_buffer.end_iter(), true);
@@ -142,9 +144,13 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
         }
         
         //here
-        cli::merge(pdf_list, &write_path);
+        let res = cli::merge(pdf_list, &write_path);
         b.set_sensitive(true);
         win.close();
+        match res {
+            Ok(()) => done_window(&main_win),
+            Err(()) => warning_window(&main_win),
+        }
     });
 }
 

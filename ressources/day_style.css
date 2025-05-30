@@ -22,6 +22,7 @@
 #app-wrapper, #main-window{
     background-color: var(--background-overall-color);
 }
+
                 
 #decision-box,#drop-box,#main-box{
     all: unset;
@@ -30,6 +31,9 @@
     border-radius: 20px;
 }
 
+#unfocused{
+    filter:blur(1.0rem);
+}
                 
 #do-button{
     border-radius:5px;

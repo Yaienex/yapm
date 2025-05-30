@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use gtk4::{gio::{prelude::FileExt, File}, glib::object::Cast, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
-use lopdf::Document;
-
-use super::{cli, widget_builder::{folder_window, row_file, widget_builder}};
 
 
-pub fn split_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
+use super::{cli, result_window::{done_window, warning_window}, widget_builder::{folder_window, row_file, widget_builder}};
+
+
+pub fn split_box(main_window:&ApplicationWindow) -> gtk4::Box{
     let (main_box,
         file_box,
         add_button,
@@ -15,8 +15,8 @@ pub fn split_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
                 false,
                 true);
 
-    let win = window.clone();
-
+    let win = main_window.clone();
+    let window = main_window.clone();
     let f_box = file_box.clone();
     add_button.connect_clicked( move |_e|{
         let file = gtk4::FileDialog::builder().title("Choose your pdf files").build();
@@ -25,6 +25,7 @@ pub fn split_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
     });
 
     do_button.connect_clicked(move |b|{
+        let window = window.clone();
         let mut number = 0;
         //let file = FileDialog::builder().title("Choose your saving location").build();
 
@@ -38,7 +39,7 @@ pub fn split_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
         if number != 0{
             //should use file.save but it ain't working
             let (faccept_button,path_content_buffer,fwin) = folder_window(b.clone(),".zip");
-            accept_button_action(faccept_button, path_content_buffer, number, file_box.clone(), fwin);
+            accept_button_action(faccept_button, path_content_buffer, number, file_box.clone(), fwin,window);
         }
     
         
@@ -73,7 +74,7 @@ fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListB
     }
 }
 
-fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow){
+fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow,main_window:ApplicationWindow){
     button.connect_clicked(move |b|{
         b.set_sensitive(false);
         let path = path_content_buffer.text(&path_content_buffer.start_iter(), &path_content_buffer.end_iter(), true);
@@ -143,8 +144,12 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
         
         //here
         pdf_list.insert(0, write_path);
-        cli::split(&mut pdf_list, true);
+        let res = cli::split(&mut pdf_list, true);
         b.set_sensitive(true);
         win.close();
+        match res {
+            Ok(()) => done_window(&main_window),
+            Err(()) => warning_window(&main_window),
+        }
     });
 }

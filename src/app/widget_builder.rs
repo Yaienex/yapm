@@ -4,8 +4,6 @@ use gtk4::{ cairo::{self, Context}, gdk::{self, prelude::{DeviceExt, DisplayExt,
 use lopdf::Document;
 use poppler::Document as PopDocument;
 
-use crate::app::cli;
-
 
 pub fn widget_builder(action_name:String,
                         icon_path:String,
@@ -90,7 +88,7 @@ pub fn widget_builder(action_name:String,
 
     action_bar.append(&add_button);
     if pdf_view_flag{
-         add_button.set_hexpand(false);
+        add_button.set_hexpand(false);
         let pdf_button = button_builder("/usr/share/yapm/ressources/loupe_icon.png".to_string());
         pdf_button.set_halign(gtk4::Align::Start);pdf_button.set_hexpand(true);
         let fb = file_box.clone();
@@ -657,7 +655,7 @@ pub fn folder_window(do_button :Button,extension:&str) -> (Button,
         .default_width(400)
         .title("Choose a path to save your file !")
         .build();
-    
+
     let boxe = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
         .vexpand(true)
@@ -681,6 +679,9 @@ pub fn folder_window(do_button :Button,extension:&str) -> (Button,
         .build();
     let path_content = TextView::builder()
         .hexpand(true)
+        .vexpand(false)
+        .valign(gtk4::Align::Fill)
+        .halign(gtk4::Align::Fill)
         .wrap_mode(gtk4::WrapMode::Word)
         .accepts_tab(false)
         .build();
