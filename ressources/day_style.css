@@ -106,3 +106,7 @@
     all :unset;
     background-color: var(--actions-bar-color);
 }
+
+#warning{
+    filter:unset;
+}

@@ -3,18 +3,24 @@ use std::path::PathBuf;
 use gtk4::{gio::{prelude::FileExt, File}, glib::object::Cast, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 
 
-use super::{cli, result_window::{done_window, warning_window}, widget_builder::{folder_window, row_file, widget_builder}};
+use super::{cli, result_window::{done_window, warning_window}, widget_builder::{folder_window, on_select, widget_builder}};
 
 
 pub fn split_box(main_window:&ApplicationWindow) -> gtk4::Box{
+    let move_flag = true;
+    let pdf_view_flag = true;
+    let select_flag = false;
+    let del_flag = true;
+
     let (main_box,
         file_box,
         add_button,
         do_button,) = widget_builder("Split".to_string(),
                 "/usr/share/yapm/ressources/split_icon.png".to_string(),
-                false,
-                true,
-                false);
+                move_flag,
+                pdf_view_flag,
+                select_flag,
+                del_flag);
 
     let win = main_window.clone();
     let window = main_window.clone();
@@ -55,26 +61,6 @@ pub fn split_box(main_window:&ApplicationWindow) -> gtk4::Box{
 
 
 //Callbacks
-//if multiple file -> Zip of zips
-fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListBox){
-    if !arg.is_err(){
-        let listmodel = &arg.unwrap();
-        for object in listmodel{
-            let path = object.unwrap().downcast::<File>().unwrap().path().unwrap();
-            let p = path.clone();
-            let splitted_path:Vec<&str>= p.to_str().unwrap().split("/").collect();
-            let name = splitted_path[splitted_path.len() -1 ];
-            //Ignoring all the format except .pdf
-            if ! name.contains(".pdf") { continue;}
-
-            //Appending the list
-            let row = row_file(path,name,false);
-            file_box.append(&row);
-            file_box.select_row(Some(&row));
-        }
-    }
-}
-
 fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow,main_window:ApplicationWindow){
     button.connect_clicked(move |b|{
         b.set_sensitive(false);
@@ -150,7 +136,7 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
         win.close();
         match res {
             Ok(()) => done_window(&main_window),
-            Err(()) => warning_window(&main_window),
+            Err(err) => warning_window(&main_window,err),
         }
     });
 }

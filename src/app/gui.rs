@@ -1,5 +1,7 @@
 
-use gtk4::{self as gtk, Grid, Image, Label, ScrolledWindow, TextView};
+use gtk4::gdk::Key;
+use gtk4::glib::Propagation;
+use gtk4::{self as gtk, EventControllerKey, Grid, Image, Label, ScrolledWindow, TextView};
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Button};
 
@@ -43,6 +45,7 @@ fn build_ui(app :&Application) {
         .default_height(600)
         .build();
 
+
     //Grid with the button tiles to choose which mode you'll choose
     let grid = Grid::builder()
         .name("grid")
@@ -77,6 +80,7 @@ fn build_ui(app :&Application) {
     grid.attach(&del_page, 1, 1,1,1);
     grid.attach(&get_page,1,2,1,1,);
 
+    //TO opti
     let help_button = Button::builder().name("button").build();
     let home_button = Button::builder().name("button").build();
     let mode_button = Button::builder().name("button").build();
@@ -95,9 +99,21 @@ fn build_ui(app :&Application) {
     header_bar.pack_start(&mode_button);
     header_bar.pack_start(&help_button);
 
+
+    let controller = EventControllerKey::new();
+    let hb = home_button.clone();
+    controller.connect_key_pressed(move |_, key, _, _| {
+        if key == Key::Escape {
+            home_button.emit_clicked();
+            Propagation::Proceed
+        } else {
+            Propagation::Proceed
+        }
+    });
+    window.add_controller(controller);
     window.set_titlebar(Some(&header_bar));
     window.present();
-    home_button.connect_clicked(move |_e|{
+    hb.connect_clicked(move |_e|{
         window.set_child(Some(&app_wrapper));
     });
     help_button.connect_clicked(|_e|{

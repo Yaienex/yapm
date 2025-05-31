@@ -1,15 +1,16 @@
 use std::{cell::RefCell, path::PathBuf, process::exit, rc::Rc};
 
-use gtk4::{ cairo::{self, Context}, gdk::{prelude::{DeviceExt, DisplayExt, SeatExt}, Key, ModifierType}, gio::{prelude::ListModelExtManual, File}, glib::{object::{Cast, CastNone}, GString, Propagation}, prelude::{ AdjustmentExt, BoxExt, ButtonExt, CheckButtonExt, DrawingAreaExt, DrawingAreaExtManual, EventControllerExt, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, CheckButton, DrawingArea, EventControllerKey, EventControllerScroll, HeaderBar, Image, Label, ListBox, ListBoxRow, ScrolledWindow, TextBuffer, TextView, Widget};
-use lopdf::Document;
-use poppler::Document as PopDocument;
+use gtk4::{ cairo::{self, Context}, gdk::{prelude::{DeviceExt, DisplayExt, SeatExt}, Key, ModifierType}, gio::{prelude::FileExt, File}, glib::{object::{Cast, CastNone}, GString, Propagation}, prelude::{ AdjustmentExt, BoxExt, ButtonExt, CheckButtonExt, DrawingAreaExt, DrawingAreaExtManual, EventControllerExt, GestureSingleExt, GtkWindowExt, ListBoxRowExt, TextBufferExt, TextViewExt, WidgetExt}, ApplicationWindow, Button, CheckButton, DrawingArea, EventControllerKey, EventControllerScroll, HeaderBar, Image, Label, ListBox, ListBoxRow, ScrolledWindow, TextBuffer, TextView, Widget};
+
+use poppler::Document;
 
 
 pub fn widget_builder(action_name:String,
                         icon_path:String,
                         move_flag:bool,
                         pdf_view_flag:bool,
-                        select_flag:bool
+                        select_flag:bool,
+                        del_flag: bool
  ) -> (gtk4::Box,
         ListBox,
         Button,
@@ -133,9 +134,18 @@ pub fn widget_builder(action_name:String,
         move_box.append(&up_button);move_box.append(&down_button);
         action_bar.append(&move_box);
     }
-    action_bar.append(&del_button);
+    if del_flag{
+        action_bar.append(&del_button);
+    } else {
+        let invi_button = Button::builder()
+            .name("invi")
+            .sensitive(false)
+            .hexpand(true)
+            .halign(gtk4::Align::End)
+            .build();
 
-
+        action_bar.append(&invi_button);
+    }
 
     drop_box.append(&action_bar);
     
@@ -340,7 +350,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
         .build();
     let scroll_win = ScrolledWindow::builder()
         .child(&file_box)
-        .hscrollbar_policy(gtk4::PolicyType::Automatic)
+        .hscrollbar_policy(gtk4::PolicyType::Never)
         .vscrollbar_policy(gtk4::PolicyType::Automatic)
         .halign(gtk4::Align::Fill)
         .hexpand(true)
@@ -368,7 +378,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
             let parse_path:Vec<&str> = abs_path.split("/").collect();
             let name = parse_path[parse_path.len() -1];
             let uri_file = format!("file://{}",&abs_path.to_string());
-            let doc = match PopDocument::from_file(&uri_file, Some("")){
+            let doc = match Document::from_file(&uri_file, Some("")){
                 Ok(doc) => doc,
                 Err(er) => {println!("{:?}",er);exit(1);}
             };
@@ -418,7 +428,7 @@ fn file_box(name_content: Label,page_number_content:Label,full_path_content:Labe
 
                     }
 
-                    let number = page_number_str.split("_")
+                    let number = page_number_str.split(" ")
                         .collect::<Vec<&str>>()[1]
                         .parse::<i32>()
                         .unwrap();
@@ -526,7 +536,7 @@ fn pdf_display(filename: String,button:Button){
     }
     bt.append(&page_indicator);
 
-    let doc = PopDocument::from_file(filename.as_str(), Some("")).unwrap();
+    let doc = Document::from_file(filename.as_str(), Some("")).unwrap();
     let doco = doc.clone();
     let num_pages = doc.n_pages();
 
@@ -670,66 +680,47 @@ fn pdf_display(filename: String,button:Button){
 
 
 // Public functions accessible from the other widget 
-pub fn row_file(path : PathBuf,name:&str,select_flag:bool) -> ListBoxRow{
+fn row_file(path : PathBuf,name:&str,select_flag:bool,visibility:bool) -> ListBoxRow{
     
-    if select_flag{let margin = 5;
-        let row = ListBoxRow::builder()
+    let margin = 5;
+    let row = ListBoxRow::builder()
                     .name("row")
                     .margin_bottom(margin)
                     .margin_top(margin)
                     .margin_start(margin)
                     .margin_end(margin)
                     .build();
-        let path = path.to_str().unwrap();
+    let path = path.to_str().unwrap();
 
-        let path_label = Label::builder()
+    let path_label = Label::builder()
             .label(path)
             .visible(false)
-            .build();
-
-        let check_box = CheckButton::builder()
-            .hexpand(true)
-            .margin_end(10)
-            .halign(gtk4::Align::End)
             .build();
 
         let name_label = Label::builder()
             .label(name)
-            .name("page")
             .build();
-        let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
-        row_child.append(&path_label);
-        row_child.append(&name_label);
+    let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+    row_child.append(&path_label);
+    row_child.append(&name_label);
+    if select_flag
+    {
+        name_label.set_widget_name("page");
+        let check_box = CheckButton::builder()
+            .hexpand(true)
+            .visible(visibility)
+            .margin_end(10)
+            .halign(gtk4::Align::End)
+            .build();
+
         row_child.append(&check_box);
 
-        row.set_child(Some(&row_child));
 
-        return  row;
-
-    } else {
-
-        let margin = 5;
-        let row = ListBoxRow::builder()
-                    .name("row")
-                    .margin_bottom(margin)
-                    .margin_top(margin)
-                    .margin_start(margin)
-                    .margin_end(margin)
-                    .build();
-        let path = path.to_str().unwrap();
-
-        let path_label = Label::builder()
-            .label(path)
-            .visible(false)
-            .build();
-        let name_label = Label::new(Some(name));
-        let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
-        row_child.append(&path_label);
-        row_child.append(&name_label);
-        row.set_child(Some(&row_child));
-
-        return  row;
-    }
+        
+    } 
+    
+    row.set_child(Some(&row_child));
+    row
 }
 
 
@@ -932,9 +923,48 @@ pub fn count(file_box: ListBox,row_to_find:ListBoxRow) -> (i32,i32){
 
 
 //Callbacks 
-//to override
+//Decompose a given pdf into pages
+pub fn on_select_pages(arg:Result<File,gtk4::glib::Error>,file_box:ListBox,select_flag:bool,visibility:bool){
+    if !arg.is_err(){
+        file_box.remove_all();
+        let file = &arg.unwrap();
+        let path = file.path().unwrap();
+        //Ignoring all the format except .pdf
+        if ! &path.to_str().unwrap().ends_with(".pdf") { return;}
 
-fn _on_save(arg : Result<File, gtk4::gdk::glib::Error>,_pdf_list :Vec<Document>){
+        //reprensenting every page by a row 
+        //Appending the list
+        let document = Document::from_file(&format!("file://{}",path.to_str().unwrap()), Some("")).unwrap();
+        let n = document.n_pages();
+        for i in 1..=n{
+            let row = row_file(path.clone(),&format!("Page {i}"),select_flag,visibility);
+            file_box.append(&row);
+        }
+        
+        }
+}
+//Add directly the given pdf to the ListBox
+pub fn on_select(arg :Result<gtk4::gio::ListModel, gtk4::glib::Error>,file_box:ListBox){
+    if !arg.is_err(){
+        let listmodel = &arg.unwrap();
+        for object in listmodel{
+            let path = object.unwrap().downcast::<File>().unwrap().path().unwrap();
+            let p = path.clone();
+            let splitted_path:Vec<&str>= p.to_str().unwrap().split("/").collect();
+            let name = splitted_path[splitted_path.len() -1 ];
+            //Ignoring all the format except .pdf
+            if ! name.contains(".pdf") { continue;}
+
+            //Appending the list
+            let row = row_file(path,name,false,true);
+            file_box.append(&row);
+            file_box.select_row(Some(&row));
+        }
+    }
+}
+
+//DnD
+fn _on_save(arg : Result<File, gtk4::gdk::glib::Error>,_pdf_list :Vec<lopdf::Document>){
     if !arg.is_err(){
         let file = arg.unwrap();
         //let tmp = file.path().unwrap();

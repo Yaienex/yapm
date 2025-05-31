@@ -53,7 +53,7 @@ pub fn cli_handler(args:&mut Vec<String>){
 }
 
 
-pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
+pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),String>{
     //Doc req
     if !gui{
             
@@ -116,7 +116,7 @@ pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
 
         match append_zip.finish() {
                 Ok(_)=> return Ok(()),
-                Err(_) => return Err(()),
+                Err(err) => return Err(err.to_string()),
         }
             
     } else {
@@ -158,7 +158,7 @@ pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
                 .open(archive)
                 {
                     Ok(zip) => zip,
-                    Err(_) => return Err(()),
+                    Err(err) => return Err(err.to_string()),
                 };
 
             let mut append_zip = zip::ZipWriter::new(existing_zip);
@@ -182,7 +182,7 @@ pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
 
             match append_zip.finish() {
                 Ok(_)=> return Ok(()),
-                Err(_) => return Err(()),
+                Err(err) => return Err(err.to_string()),
             }
             
         } else {// Multiple file to split -> create subdir before extraction + delete dir after zip is done
@@ -194,7 +194,7 @@ pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
                 .write(true)
                 .open(archive){
                     Ok(zip) => zip,
-                    Err(_) => return Err(()),
+                    Err(err) => return Err(err.to_string()),
                 };
                 
 
@@ -246,7 +246,7 @@ pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
 
             match append_zip.finish() {
                 Ok(_)=> return Ok(()),
-                Err(_) => return Err(()),
+                Err(err) => return Err(err.to_string()),
             }
             
         }
@@ -254,7 +254,7 @@ pub fn split(args:&mut Vec<String>,gui:bool) -> Result<(),()>{
 
 }
 
-pub fn merge(documents:Vec<Document>,name: &str) -> Result<(),()> {
+pub fn merge(documents:Vec<Document>,name: &str) -> Result<(),String> {
     // Define a starting `max_id` (will be used as start index for object_ids).
     let mut max_id = 1;
     let mut pagenum = 1;
@@ -420,13 +420,13 @@ pub fn merge(documents:Vec<Document>,name: &str) -> Result<(),()> {
 
     match document.save(name){
         Ok(_) => Ok(()),
-        Err(_)=> Err(()),
+        Err(err)=> Err(err.to_string()),
     }
     
 
 }
 
-pub fn reorganize(args:&mut Vec<String>)-> Result<(),()>{
+pub fn reorganize(args:&mut Vec<String>)-> Result<(),String>{
     let document;
     let pdf_name;
     (document,pdf_name)  = load_doc_lop(args);
@@ -472,7 +472,7 @@ pub fn reorganize(args:&mut Vec<String>)-> Result<(),()>{
     Ok(())
 }
 
-pub fn del_page(args:&mut Vec<String>)-> Result<(),()>{
+pub fn del_page(args:&mut Vec<String>)-> Result<(),String>{
     let  doc;
     let  pdf_name;
     (doc,pdf_name )= load_doc_pop(args);
@@ -499,7 +499,7 @@ pub fn del_page(args:&mut Vec<String>)-> Result<(),()>{
 
         match cr.show_page() {
             Ok(_) => (),
-            Err(_) => return Err(()),
+            Err(err) => return Err(err.to_string()),
         };
         surface.finish();
     }
@@ -513,12 +513,12 @@ pub fn del_page(args:&mut Vec<String>)-> Result<(),()>{
     delete_files(files);
     match merge(documents, &name){
         Ok(_) => Ok(()),
-        Err(_)=> Err(()),
+        Err(err)=> Err(err),
     }
 
 }
 
-pub fn get_page(args:&mut Vec<String>)-> Result<(),()>{
+pub fn get_page(args:&mut Vec<String>)-> Result<(),String>{
     let  document;
     let  pdf_name;
     (document,pdf_name)  = load_doc_pop(args);
@@ -533,35 +533,35 @@ pub fn get_page(args:&mut Vec<String>)-> Result<(),()>{
     let filename =  format!("Page_{page_to_get}_{}",pdf_name);
     let surface = match cairo::PdfSurface::new(595.0, 842.0, &filename){
         Ok(surface) => surface,
-        Err(_) => return Err(()),
+        Err(err) => return Err(err.to_string()),
     };
     let cr = match cairo::Context::new(&surface){
         Ok(cr) => cr,
-        Err(_) => return Err(()),
+        Err(err) => return Err(err.to_string()),
     };
     let page  = match  document.page(page_to_get -1 ){
         Some(e) => e,
-        None => return  Err(()),
+        None => return  Err("The page was not found in the given pdf".to_string()),
     };
     page.render_for_printing(&cr);
 
     match cr.show_page(){
         Ok(_) => (),
-        Err(_) => return Err(()),
+        Err(err) => return Err(err.to_string()),
     };
     surface.finish();
    
    Ok(())
 }
 
-fn compress( args: &mut Vec<String>) -> Result<(),()>{
+fn compress( args: &mut Vec<String>) -> Result<(),String>{
     let mut doc ;
     let _pdf_name;
     (doc,_pdf_name)= load_doc_lop(args);
     doc.compress();
     match  doc.save("compressed.pdf") {
         Ok(_) => Ok(()),
-        Err(_) => Err(())
+        Err(err) => Err(err.to_string())
     }
 
 }
