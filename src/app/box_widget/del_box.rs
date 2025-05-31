@@ -1,9 +1,10 @@
-use super::{cli, result_window::{done_window, warning_window}, widget_builder::{folder_window, on_select_pages, widget_builder}};
-use gtk4::{gio::File, glib::object::{Cast, CastNone}, prelude::{ButtonExt, CheckButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, CheckButton, Label, ListBox, ListBoxRow, TextBuffer, Widget};
+use crate::app::{cli, result_window::{done_window, warning_window}};
+
+use super::super::widget_builder::{folder_window, on_select_pages, widget_builder};
+use gtk4::{gio::File, glib::{object::{Cast, CastNone}}, prelude::{ButtonExt, CheckButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, CheckButton, Label, ListBox, ListBoxRow, TextBuffer, Widget};
 
 
-pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
-
+pub fn del_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
 
     let move_flag = false;
     let pdf_view_flag = false;
@@ -14,23 +15,23 @@ pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
     let (main_box,
         file_box,
         add_button,
-        do_button) = widget_builder("Get page(s)".to_string(),
-                "/usr/share/yapm/ressources/get_icon.png".to_string(),
+        do_button) = widget_builder("Delete page(s)".to_string(),
+                "/usr/share/yapm/ressources/del_icon.png".to_string(),
                 move_flag,
                 pdf_view_flag,
                 select_flag,
                 del_flag);
 
     let win = window.clone();
-    let fb = file_box.clone(); 
+    let fb = file_box.clone();
+    //Connect buttons to right actions 
     add_button.connect_clicked( move |_e|{
-
-        let file = gtk4::FileDialog::builder().title("Choose your pdf files").build();
+        let file = gtk4::FileDialog::builder().title("Choose your pdf file").build();
         let f_box = file_box.clone();
-        file.open(Some(&win), gtk4::gio::Cancellable::NONE,  move |arg0: Result<File, gtk4::glib::Error>| on_select_pages(arg0,f_box,select_flag,check_visible));
+        file.open(Some(&win), gtk4::gio::Cancellable::NONE,  move  |arg0: Result<File, gtk4::glib::Error>| on_select_pages(arg0,f_box,select_flag,check_visible));
     });
 
-     let win = window.clone();
+    let win = window.clone();
     let file_box = fb.clone();
     do_button.connect_clicked(move |b|{
         let window = win.clone();
@@ -56,23 +57,21 @@ pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
                 .downcast::<Label>()
                 .unwrap()
                 .label();
-            
+
             let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf",false);
             let file_path = file_path.replacen(".pdf", "_modified.pdf", 1);
             path_content_buffer.set_text(&file_path);
-           
+            
             accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin,window);
         
         }
-    
-        
-        
+       
     });
-
     main_box
 }
 
 
+//Callbacks
 fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow,main_win:ApplicationWindow){
     button.connect_clicked(move |b|{
         b.set_sensitive(false);
@@ -109,7 +108,7 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
                 .downcast::<CheckButton>()
                 .unwrap();
 
-            if !check_box.is_active(){
+            if check_box.is_active(){
                 pages_list = format!("{page_number} {pages_list}");
             }
         }
@@ -120,7 +119,7 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
         
         let mut args = vec![file_path,write_path.to_string(),pages_list];
 
-        let res = cli::get_page(&mut args, true);
+        let res = cli::del_page(&mut args, true);
 
         b.set_sensitive(true);
         win.close();

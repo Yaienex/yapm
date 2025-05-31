@@ -6,11 +6,11 @@ use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Button};
 
 
-use super::del_box::del_box;
-use super::get_box::get_box;
-use super::merge_box::merge_box;
-use super::reorg_box::reorg_box;
-use super::split_box::split_box;
+use super::box_widget::del_box::del_box;
+use super::box_widget::get_box::get_box;
+use super::box_widget::merge_box::merge_box;
+use super::box_widget::reorg_box::reorg_box;
+use super::box_widget::split_box::split_box;
 
 
 pub fn app(){

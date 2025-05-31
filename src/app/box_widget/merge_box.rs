@@ -3,7 +3,7 @@ use std::{path::PathBuf, process::exit};
 use gtk4::{  gio::{prelude::{InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 use lopdf::Document;
 
-use super::{cli, result_window::{done_window, warning_window}, widget_builder::{ folder_window, on_select, widget_builder}};
+use super::super::{cli, result_window::{done_window, warning_window}, widget_builder::{ folder_window, on_select, widget_builder}};
 
 
 //Move widget on the main box
