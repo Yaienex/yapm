@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use gtk4::{gio::{prelude::FileExt, File}, glib::object::Cast, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
+use gtk4::{ glib::object::Cast, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 
 
 use super::{cli, result_window::{done_window, warning_window}, widget_builder::{folder_window, on_select, widget_builder}};
@@ -129,13 +129,12 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
             
         }
         
-        //here
-        pdf_list.insert(0, write_path);
+        pdf_list.insert(0, write_path.clone());
         let res = cli::split(&mut pdf_list, true);
         b.set_sensitive(true);
         win.close();
         match res {
-            Ok(()) => done_window(&main_window),
+            Ok(()) => done_window(&main_window,write_path.clone()),
             Err(err) => warning_window(&main_window,err),
         }
     });

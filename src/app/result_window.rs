@@ -1,7 +1,7 @@
 use gtk4::{ glib::{object::{Cast, CastNone}, Propagation}, prelude::{BoxExt, ButtonExt, GtkWindowExt, WidgetExt}, ApplicationWindow, Button, CenterBox, HeaderBar, Label, Widget, WindowHandle};
 
 
-pub fn done_window(main_win:&ApplicationWindow){
+pub fn done_window(main_win:&ApplicationWindow,path:String){
     let window = ApplicationWindow::builder()
         .resizable(false)
         .modal(true)
@@ -10,6 +10,55 @@ pub fn done_window(main_win:&ApplicationWindow){
         .transient_for(main_win)
         .title("All done ")
         .build();
+
+    //vbox
+    let vbox = gtk4::Box::builder()
+        .vexpand(true)
+        .valign(gtk4::Align::Fill)
+        .halign(gtk4::Align::Fill)
+        .hexpand(true)
+        .margin_end(20)
+        .margin_start(20)
+        .orientation(gtk4::Orientation::Vertical)
+        .build();
+    let erro_title = format!(" <span color=\"green\"font=\"16\">\u{f058}  ALL DONE \u{f058} </span>");
+    let err_label = Label::builder()
+        .use_markup(true)
+        .halign(gtk4::Align::Center)
+        .hexpand(true)
+        .valign(gtk4::Align::Fill)
+        .vexpand(true)
+        .label(erro_title)
+        .build();
+
+    let message = format!("<span font=\"12\">The file was successfully modified.\nIt was saved at <b>{path}</b></span>");
+    let label = Label::builder()
+        .use_markup(true)
+        .halign(gtk4::Align::Fill)
+        .hexpand(true)
+        .valign(gtk4::Align::Center)
+        .vexpand(true)
+        .label(message)
+        .build();
+
+    let ok_button = Button::builder()
+        .halign(gtk4::Align::Fill)
+        .hexpand(true)
+        .valign(gtk4::Align::End)
+        .margin_bottom(20)
+        .vexpand(true)
+        .label("Ok")
+        .build();
+    let win = window.clone();
+    ok_button.connect_clicked(move |_b|{
+        let window = win.clone();
+        window.close();
+    });
+    vbox.append(&err_label);
+    vbox.append(&label);
+    vbox.append(&ok_button);
+
+    window.set_child(Some(&vbox));
     window.present();
 
     //getting the gome button for

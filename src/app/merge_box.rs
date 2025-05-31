@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::exit};
 
-use gtk4::{  gio::{prelude::{FileExt, InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
+use gtk4::{  gio::{prelude::{InputStreamExt, InputStreamExtManual}, File}, glib::{object::Cast, GString}, prelude::{ButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, Label, ListBox, ListBoxRow, TextBuffer};
 use lopdf::Document;
 
 use super::{cli, result_window::{done_window, warning_window}, widget_builder::{ folder_window, on_select, widget_builder}};
@@ -61,8 +61,6 @@ pub fn merge_box(main_window:&ApplicationWindow) -> gtk4::Box{
     main_box
 }
 
-
-//Override
 fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow,main_win:ApplicationWindow){
     button.connect_clicked(move |b|{
         b.set_sensitive(false);
@@ -131,17 +129,25 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
             pdf_list.push(doc);
             
         }
-        
-        //here
+    
         let res = cli::merge(pdf_list, &write_path);
         b.set_sensitive(true);
         win.close();
         match res {
-            Ok(()) => done_window(&main_win),
+            Ok(()) => done_window(&main_win,write_path.clone()),
             Err(msg) => warning_window(&main_win,msg),
         }
     });
 }
+
+
+
+
+
+
+
+
+
 
 //TEST DROP ZONE 
 
