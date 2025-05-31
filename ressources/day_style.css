@@ -101,3 +101,8 @@
 #move-button:hover{
     filter: brightness(0.7);
 }
+
+#invi {
+    all :unset;
+    background-color: var(--actions-bar-color);
+}
