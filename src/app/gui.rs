@@ -14,14 +14,12 @@ use super::split_box::split_box;
 
 
 pub fn app(){
-    let _ = gtk::init();
     let app = Application::builder()
         .application_id("org.yaienex.yapm")
         .build();
     app.connect_activate(build_ui);
     let mut no_args : [&str; 0] = [];
     app.run_with_args (&mut no_args);();
-    //app.run();
 }
 
 
