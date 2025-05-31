@@ -41,7 +41,7 @@ pub fn merge_box(main_window:&ApplicationWindow) -> gtk4::Box{
 
         if number != 0{
             //should use file.save but it ain't working
-            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf");
+            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf",true);
             accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin,window);
         
         }

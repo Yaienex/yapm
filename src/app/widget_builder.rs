@@ -693,13 +693,14 @@ fn row_file(path : PathBuf,name:&str,select_flag:bool,visibility:bool) -> ListBo
     let path = path.to_str().unwrap();
 
     let path_label = Label::builder()
-            .label(path)
-            .visible(false)
-            .build();
+        .label(path)
+        .visible(false)
+        .build();
 
-        let name_label = Label::builder()
-            .label(name)
-            .build();
+    let name_label = Label::builder()
+        .label(name)
+        .build();
+    
     let row_child = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
     row_child.append(&path_label);
     row_child.append(&name_label);
@@ -709,7 +710,8 @@ fn row_file(path : PathBuf,name:&str,select_flag:bool,visibility:bool) -> ListBo
         let check_box = CheckButton::builder()
             .hexpand(true)
             .visible(visibility)
-            .margin_end(10)
+            .margin_end(margin)
+            .margin_start(margin*3)
             .halign(gtk4::Align::End)
             .build();
 
@@ -725,18 +727,24 @@ fn row_file(path : PathBuf,name:&str,select_flag:bool,visibility:bool) -> ListBo
 
 
 #[allow(unused_assignments)]
-pub fn folder_window(do_button :Button,extension:&str) -> (Button,
-                                                                        TextBuffer,
+pub fn folder_window(do_button :Button,extension:&str,editable:bool) -> (Button,
+                                                            TextBuffer,
                                                             ApplicationWindow){
     let margin = 10;
     let bar = HeaderBar::builder()
         .build();
+    let title:&str;
+    if !editable{
+        title = "Confirm";
+    }else {
+        title ="Choose a path to save your file !";
+    }
     let window = ApplicationWindow::builder()
         .resizable(false)
         .titlebar(&bar)
         .default_height(200)
         .default_width(400)
-        .title("Choose a path to save your file !")
+        .title(title)
         .build();
 
     let boxe = gtk4::Box::builder()
@@ -763,6 +771,9 @@ pub fn folder_window(do_button :Button,extension:&str) -> (Button,
     let path_content = TextView::builder()
         .hexpand(true)
         .vexpand(false)
+        .editable(editable)
+        .can_target(editable)
+        .cursor_visible(editable)
         .valign(gtk4::Align::Fill)
         .halign(gtk4::Align::Fill)
         .wrap_mode(gtk4::WrapMode::Word)
@@ -840,65 +851,68 @@ pub fn folder_window(do_button :Button,extension:&str) -> (Button,
     let path_content_buffer = pac.buffer();
     let pcb = path_check_box.clone();
     let accept_button = acb.clone();
-    acb.set_sensitive(false);
-    let extension = extension.to_string();
-    path_content_buffer.connect_changed(move |buff|{
-        let path = buff.text(&buff.start_iter(), &buff.end_iter(), true).to_string();
-        let mut path_str :String = String::new();
-        let mut splitted_path: Vec<&str> = Vec::new();
-        let mut message:String = String::new();
-
-        if path.starts_with("/"){
-            path_str = String::from("/");
-        }
-        splitted_path = path.split("/").collect();
-        
-        
-        //taking only the file name 
-        let file_name = splitted_path.remove(splitted_path.len() -1);
-        let mut tmp =splitted_path.join("/"); 
-        if tmp.starts_with("/"){
-            tmp.remove(0);
-            path_str += &tmp;
-        } else {
-            path_str += &tmp;
-        }
-        //we remove the file name so we override path_buf to only contain the link to the directory
-        let ps = path_str.clone();
-        let path_buf:PathBuf = path_str.into();
-        if !path_buf.has_root(){
-            message = format!("<span foreground=\"red\">Absolute link</span> is needed");
-            accept_button.set_sensitive(false);
-        }
-        else if !path_buf.exists() {
-            message = format!("The <span foreground=\"red\">given</span> path doesn't exist");
-            accept_button.set_sensitive(false);
-        }
-        else if !path_buf.is_dir() && ps !="/"{
-            message = format!("An <span foreground=\"red\">existing</span> directory is needed");
-            accept_button.set_sensitive(true); //a warning window on popup | it will create a pdf with a default name
-        } else if !file_name.ends_with(&extension){
-            message = format!("A <span foreground=\"red\"> {extension} extension</span> is needed");
-            accept_button.set_sensitive(true);//just place the damn .pdf extension at the end
-        }
-
-        let path_check = Label::builder()
-            .label(message)
-            .use_markup(true)
-            .wrap_mode(gtk4::gdk::pango::WrapMode::Word)
-            .margin_start(margin)
-            .margin_end(margin)
-            .vexpand(true)
-            .hexpand(true)
-            .halign(gtk4::Align::Center)
-            .build();
-
-        let fc = &pcb.first_child().unwrap();
-        pcb.insert_child_after(&path_check, Some(fc));
-        pcb.remove(fc);
-   
-    });
     
+    if editable{
+        acb.set_sensitive(false);
+        let extension = extension.to_string();
+        
+        path_content_buffer.connect_changed(move |buff|{
+            let path = buff.text(&buff.start_iter(), &buff.end_iter(), true).to_string();
+            let mut path_str :String = String::new();
+            let mut splitted_path: Vec<&str> = Vec::new();
+            let mut message:String = String::new();
+
+            if path.starts_with("/"){
+                path_str = String::from("/");
+            }
+            splitted_path = path.split("/").collect();
+            
+            
+            //taking only the file name 
+            let file_name = splitted_path.remove(splitted_path.len() -1);
+            let mut tmp =splitted_path.join("/"); 
+            if tmp.starts_with("/"){
+                tmp.remove(0);
+                path_str += &tmp;
+            } else {
+                path_str += &tmp;
+            }
+            //we remove the file name so we override path_buf to only contain the link to the directory
+            let ps = path_str.clone();
+            let path_buf:PathBuf = path_str.into();
+            if !path_buf.has_root(){
+                message = format!("<span foreground=\"red\">Absolute link</span> is needed");
+                accept_button.set_sensitive(false);
+            }
+            else if !path_buf.exists() {
+                message = format!("The <span foreground=\"red\">given</span> path doesn't exist");
+                accept_button.set_sensitive(false);
+            }
+            else if !path_buf.is_dir() && ps !="/"{
+                message = format!("An <span foreground=\"red\">existing</span> directory is needed");
+                accept_button.set_sensitive(true); //a warning window on popup | it will create a pdf with a default name
+            } else if !file_name.ends_with(&extension){
+                message = format!("A <span foreground=\"red\"> {extension} extension</span> is needed");
+                accept_button.set_sensitive(true);//just place the damn .pdf extension at the end
+            }
+
+            let path_check = Label::builder()
+                .label(message)
+                .use_markup(true)
+                .wrap_mode(gtk4::gdk::pango::WrapMode::Word)
+                .margin_start(margin)
+                .margin_end(margin)
+                .vexpand(true)
+                .hexpand(true)
+                .halign(gtk4::Align::Center)
+                .build();
+
+            let fc = &pcb.first_child().unwrap();
+            pcb.insert_child_after(&path_check, Some(fc));
+            pcb.remove(fc);
+    
+        });
+    }
     //return the necessary objects to connect the action 
     (acb,path_content_buffer,win)
     
@@ -919,7 +933,6 @@ pub fn count(file_box: ListBox,row_to_find:ListBoxRow) -> (i32,i32){
 
     (number -1, row_index)
 }
-
 
 
 //Callbacks 

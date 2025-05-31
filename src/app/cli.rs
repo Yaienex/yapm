@@ -43,8 +43,8 @@ pub fn cli_handler(args:&mut Vec<String>){
         },
         "help" |"h" |"?" => help(args),
         "compress" =>{let _ = compress(args);},
-        "get" | "g" => {let _ = get_page(args);},
-        "delete" |"del" |"d" =>{let _ = del_page(args);},
+        "get" | "g" => {let _ = get_page(args,false);},
+        "delete" |"del" |"d" =>{let _ = del_page(args,false);},
         "split" |"s" => {let _ = split(args,false);},
         "app" => app(),
         "reorganize" |"swap"|"sw" |"reorg" |"ro" => {let _ = reorganize(args);},
@@ -472,86 +472,123 @@ pub fn reorganize(args:&mut Vec<String>)-> Result<(),String>{
     Ok(())
 }
 
-pub fn del_page(args:&mut Vec<String>)-> Result<(),String>{
-    let  doc;
-    let  pdf_name;
-    (doc,pdf_name )= load_doc_pop(args);
-    let mut pages_to_del:Vec<i32> = vec![];
-    for i in 0..args.len(){
-        pages_to_del.push(args[i].parse::<i32>().unwrap())
+pub fn del_page(args:&mut Vec<String>,gui:bool)-> Result<(),String>{
+    
+    if gui {
+        let file_path =args[0].clone();
+        let write_path = args[1].clone();
+        let pages_list:Vec<u32> = args[2].split(" ").into_iter().map(|e| e.parse::<u32>().unwrap()).collect();
+        
+        let mut doc = match Document::load(file_path){
+            Ok(doc) => doc,
+            Err(err) => {println!("{}",err.to_string()); return Err(err.to_string());}
+        };
+        doc.delete_pages(&pages_list);
+        match doc.save(write_path){
+            Ok(_file) => return Ok(()),
+            Err(err) => {return Err(err.to_string());},
+        };
+
     }
-
-    let total = doc.n_pages();
-    let mut files:Vec<String> = Vec::new();
-
-    for i in 0..total {
-        let page_number = i + 1;
-        if pages_to_del.contains(&page_number) {
-            continue;
+    else {
+        let  doc;
+        let  pdf_name;
+        (doc,pdf_name )= load_doc_pop(args);
+        let mut pages_to_del:Vec<i32> = vec![];
+        for i in 0..args.len(){
+            pages_to_del.push(args[i].parse::<i32>().unwrap())
         }
 
-        let filename = format!("page_{}.pdf", page_number);
-        files.push(filename.clone());
-        let surface = cairo::PdfSurface::new(595.0, 842.0, &filename).unwrap();
-        let cr = cairo::Context::new(&surface).unwrap();
-        let page = doc.page(i ).unwrap();
+        let total = doc.n_pages();
+        let mut files:Vec<String> = Vec::new();
+
+        for i in 0..total {
+            let page_number = i + 1;
+            if pages_to_del.contains(&page_number) {
+                continue;
+            }
+
+            let filename = format!("page_{}.pdf", page_number);
+            files.push(filename.clone());
+            let surface = cairo::PdfSurface::new(595.0, 842.0, &filename).unwrap();
+            let cr = cairo::Context::new(&surface).unwrap();
+            let page = doc.page(i ).unwrap();
+            page.render_for_printing(&cr);
+
+            match cr.show_page() {
+                Ok(_) => (),
+                Err(err) => return Err(err.to_string()),
+            };
+            surface.finish();
+        }
+
+        let mut documents:Vec<Document> = Vec::new();
+        for file in &files{
+            documents.push(Document::load(file).unwrap())
+        }
+
+        let name = format!("modified_{}",pdf_name);
+        delete_files(files);
+        match merge(documents, &name){
+            Ok(_) => Ok(()),
+            Err(err)=> Err(err),
+        }
+    
+    }
+}
+
+pub fn get_page(args:&mut Vec<String>,gui:bool)-> Result<(),String>{
+    if !gui {
+        let  document;
+        let  pdf_name;
+        (document,pdf_name)  = load_doc_pop(args);
+        let count = document.n_pages();
+        let page_to_get = args[0].parse::<i32>().unwrap();
+        if page_to_get > count {
+            println!("The {} page is out of range. The pdf file have {} page(s)",page_to_get,count);
+            exit(1);
+        }
+
+        let filename =  format!("Page_{page_to_get}_{}",pdf_name);
+        let surface = match cairo::PdfSurface::new(595.0, 842.0, &filename){
+            Ok(surface) => surface,
+            Err(err) => return Err(err.to_string()),
+        };
+        let cr = match cairo::Context::new(&surface){
+            Ok(cr) => cr,
+            Err(err) => return Err(err.to_string()),
+        };
+        let page  = match  document.page(page_to_get -1 ){
+            Some(e) => e,
+            None => return  Err("The page was not found in the given pdf".to_string()),
+        };
         page.render_for_printing(&cr);
 
-        match cr.show_page() {
+        match cr.show_page(){
             Ok(_) => (),
             Err(err) => return Err(err.to_string()),
         };
         surface.finish();
-    }
-
-    let mut documents:Vec<Document> = Vec::new();
-    for file in &files{
-        documents.push(Document::load(file).unwrap())
-    }
-
-    let name = format!("modified_{}",pdf_name);
-    delete_files(files);
-    match merge(documents, &name){
-        Ok(_) => Ok(()),
-        Err(err)=> Err(err),
-    }
-
-}
-
-pub fn get_page(args:&mut Vec<String>)-> Result<(),String>{
-    let  document;
-    let  pdf_name;
-    (document,pdf_name)  = load_doc_pop(args);
-    let count = document.n_pages();
-    let page_to_get = args[0].parse::<i32>().unwrap();
-    if page_to_get > count {
-        println!("The {} page is out of range. The pdf file have {} page(s)",page_to_get,count);
-        exit(1);
-    }
     
+        Ok(())
+  } else {
+    let file_path =args[0].clone();
+        let write_path = args[1].clone();
+        let pages_list:Vec<u32> = args[2].split(" ").into_iter().map(|e| e.parse::<u32>().unwrap()).collect();
+        
+        println!("write : {write_path}\nfile : {file_path}\n{:?}",pages_list);
 
-    let filename =  format!("Page_{page_to_get}_{}",pdf_name);
-    let surface = match cairo::PdfSurface::new(595.0, 842.0, &filename){
-        Ok(surface) => surface,
-        Err(err) => return Err(err.to_string()),
-    };
-    let cr = match cairo::Context::new(&surface){
-        Ok(cr) => cr,
-        Err(err) => return Err(err.to_string()),
-    };
-    let page  = match  document.page(page_to_get -1 ){
-        Some(e) => e,
-        None => return  Err("The page was not found in the given pdf".to_string()),
-    };
-    page.render_for_printing(&cr);
+        let mut doc = match Document::load(file_path){
+            Ok(doc) => doc,
+            Err(err) => {println!("{}",err.to_string()); return Err(err.to_string());}
+        };
+        doc.delete_pages(&pages_list);
+        match doc.save(write_path){
+            Ok(_file) => return Ok(()),
+            Err(err) => {return Err(err.to_string());},
+        };
 
-    match cr.show_page(){
-        Ok(_) => (),
-        Err(err) => return Err(err.to_string()),
-    };
-    surface.finish();
-   
-   Ok(())
+  }
 }
 
 fn compress( args: &mut Vec<String>) -> Result<(),String>{
@@ -565,7 +602,6 @@ fn compress( args: &mut Vec<String>) -> Result<(),String>{
     }
 
 }
-
 
 fn help(args:&mut Vec<String>){
     if args.len() == 1 {

@@ -45,7 +45,7 @@ pub fn split_box(main_window:&ApplicationWindow) -> gtk4::Box{
 
         if number != 0{
             //should use file.save but it ain't working
-            let (faccept_button,path_content_buffer,fwin) = folder_window(b.clone(),".zip");
+            let (faccept_button,path_content_buffer,fwin) = folder_window(b.clone(),".zip",true);
             accept_button_action(faccept_button, path_content_buffer, number, file_box.clone(), fwin,window);
         }
     
@@ -90,7 +90,6 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
             name = String::from("zipped_doc.zip");
             flag = true;
         }else {//the normal case
-            //println!("no : {:?}",file_name);
             if file_name.ends_with(".zip"){
                  name = file_name.to_owned();
             } else {

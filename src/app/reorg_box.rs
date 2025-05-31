@@ -46,7 +46,7 @@ pub fn reorg_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
 
         if number != 0{
             //should use file.save but it ain't working
-            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf");
+            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf",false);
             accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin,window);
         
         }
@@ -91,7 +91,6 @@ fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,
             name = String::from("merged.pdf");
             flag = true;
         }else {//the normal case
-            //println!("no : {:?}",file_name);
             if file_name.ends_with(".pdf"){
                  name = file_name.to_owned();
             } else {

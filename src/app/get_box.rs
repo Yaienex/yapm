@@ -1,7 +1,5 @@
-use std::path::PathBuf;
-
-use super::widget_builder::{folder_window, on_select_pages, widget_builder};
-use gtk4::{gio::File, prelude::{ButtonExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, ListBox, ListBoxRow, TextBuffer};
+use super::{cli, result_window::{done_window, warning_window}, widget_builder::{folder_window, on_select_pages, widget_builder}};
+use gtk4::{gio::File, glib::object::{Cast, CastNone}, prelude::{ButtonExt, CheckButtonExt, GtkWindowExt, TextBufferExt, WidgetExt}, ApplicationWindow, Button, CheckButton, Label, ListBox, ListBoxRow, TextBuffer, Widget};
 
 
 pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
@@ -48,7 +46,21 @@ pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
 
         if number != 0{
             //should use file.save but it ain't working
-            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf");
+            let file_path = file_box.first_child()
+                .unwrap()
+                .first_child()
+                .unwrap()
+                .downcast::<gtk4::Box>()
+                .unwrap()
+                .first_child().unwrap()
+                .downcast::<Label>()
+                .unwrap()
+                .label();
+            
+            let (accept_button_fwin,path_content_buffer,fwin) = folder_window(b.clone(),".pdf",false);
+            let file_path = file_path.replacen(".pdf", "_modified.pdf", 1);
+            path_content_buffer.set_text(&file_path);
+           
             accept_button_action(accept_button_fwin, path_content_buffer, number, file_box.clone(), fwin,window);
         
         }
@@ -61,58 +73,59 @@ pub fn get_box(window:&gtk4::ApplicationWindow) -> gtk4::Box{
 }
 
 
-
 fn accept_button_action(button:Button,path_content_buffer:TextBuffer,number:i32,file_box: ListBox,win:ApplicationWindow,main_win:ApplicationWindow){
     button.connect_clicked(move |b|{
         b.set_sensitive(false);
-        let path = path_content_buffer.text(&path_content_buffer.start_iter(), &path_content_buffer.end_iter(), true);
-        //dichotomy if path is a dir or not
-        let mut splitted_path:Vec<&str>= path.split("/").collect();
-        let name: String;
-        let mut flag:bool = false;
-        let file_name = splitted_path.remove(splitted_path.len() -1);
-        let path_dir:PathBuf ={
-            let tmp = splitted_path.join("/");
-            if tmp.is_empty() {
-                PathBuf::from("/")
-            } else{
-                if tmp.contains("\n"){
-                    return;
-                }
-                tmp.into()
-            }
-        };
+        let mut pages_list:String= String::new();
 
-        let path_buf:PathBuf = path.clone().into();
-        if !(path_dir.exists() || path_buf.exists()) || !path.starts_with("/") || file_name.is_empty(){ // the case where the user enter but the path is not valid
-           return ;
-        } else if path_buf.is_dir(){
-            //println!("we are on default mode");
-            name = String::from("merged.pdf");
-            flag = true;
-        }else {//the normal case
-            //println!("no : {:?}",file_name);
-            if file_name.ends_with(".pdf"){
-                 name = file_name.to_owned();
-            } else {
-                name = format!("{file_name}.pdf");
+        for i in 0..number{
+            //access the invisible label the absolute path
+            let abs_path = file_box.row_at_index(i)
+                .unwrap()
+                .first_child()
+                .and_downcast::<gtk4::Box>()
+                .unwrap()
+                .observe_children();
+
+            //get the page number 
+            let mut label= abs_path.into_iter().filter_map(|e|{
+                let mut tmp = e.iter().cloned();
+                if tmp.next().unwrap().downcast::<Widget>().unwrap().widget_name() == "page"
+                {return Some(e);} else {None}}
+            );
+
+            let binding = label.next()
+            .unwrap().unwrap().downcast::<Label>().unwrap().label();
+            let page_number = binding.split(" ").collect::<Vec<&str>>()[1];
+
+            //Check if the check button have been clicked
+            let check_box = file_box.row_at_index(i)
+                .unwrap()
+                .first_child()
+                .and_downcast::<gtk4::Box>()
+                .unwrap()
+                .last_child()
+                .unwrap()
+                .downcast::<CheckButton>()
+                .unwrap();
+
+            if !check_box.is_active(){
+                pages_list = format!("{page_number} {pages_list}");
             }
         }
+        pages_list.pop();
+        
+        let write_path = path_content_buffer.text(&path_content_buffer.start_iter(),&path_content_buffer.end_iter(), false);
+        let file_path = write_path.replace("_modified.pdf", ".pdf");
+        
+        let mut args = vec![file_path,write_path.to_string(),pages_list];
 
-        let write_path: String = {
-            let pds = path_dir.to_str().unwrap();
-            let pbs = path_buf.to_str().unwrap();
-            if flag{
-                format!("{}/{name}",pbs)
-            } else {
-                if pds == "/"{
-                    format!("{}{name}",pds)
-                }else {
-                    format!("{}/{name}",pds)
-                }
-                
-            }
+        let res = cli::get_page(&mut args, true);
 
-        };
-
+        b.set_sensitive(true);
+        win.close();
+        match res {
+            Ok(()) => done_window(&main_win,write_path.to_string()),
+            Err(msg) => warning_window(&main_win,msg),
+        }
 });}
